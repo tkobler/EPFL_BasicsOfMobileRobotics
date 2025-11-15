@@ -1,13 +1,13 @@
-# BOMR 2025 Project 
+# Basics of Mobile Robotics 2025 Project 
 Repository for the basics of mobile robotics project.
 
-Group n°## 
+Group n°14
 
 Members:
-- member1
-- member2
-- member3
-- member4
+- Tim Kobler
+- Amir Lahlou
+- Ana Schwabedal
+- Jules Villaret
 
 ## How to use git
 > [!NOTE]
