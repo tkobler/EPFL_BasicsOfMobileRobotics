@@ -9,6 +9,10 @@ class GlobalNav:
         # find the optimal path given the global map data
         return
     
+    def is_goal_reached(self, current_pos, goal_pos):
+        # Check if the goal is reached
+        return
+    
 
     #getters and setters can be added as needed
 

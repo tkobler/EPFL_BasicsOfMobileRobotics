@@ -22,40 +22,41 @@ async def main():
     
         # Init the map, filter, global and local navigation modules
         map.init_map()
-        thymio = map.get_thymio_position()
-        goal = map.get_goal_position()
-        obstacles = map.get_obstacles_positions()
-        path = global_nav.find_optimal_path(thymio, goal, obstacles)
+        thymio = map.get_thymio_position() # pos x,y
+        goal = map.get_goal_position() # pos x,y 
+        obstacles = map.get_obstacles_positions() # list of pos x,y
+        path = global_nav.find_optimal_path(thymio, goal, obstacles) # list of pos x,y 
+        motion_control.set_path(path)
 
         # Main loop
         while goal_not_reached:
             # sensing
-            new_pos = map.get_thymio_position()
-            left_displacement, right_speed = motion_control.get_displacement()
+            pos_measure = map.get_thymio_position()
+            left_speed, right_speed = motion_control.get_speed()
 
             # pose estimation
-            pos_estim = filter.update(new_pos, left_displacement, right_speed)
-
-            # is there a kidnapping?
-            if motion_control.is_kidnapped(pos_estim, thymio):
-                path = global_nav.find_optimal_path(new_pos, goal, obstacles)
-                pos_estim = new_pos
-
-            thymio = pos_estim
+            pos_estim = filter.update(pos_measure, left_speed, right_speed)
 
             # is goal reached ?
-            if motion_control.is_goal_reached(thymio, goal):
+            if global_nav.is_goal_reached(thymio, goal):
                 goal_not_reached = False
                 motion_control.stop()
                 break
 
-            # movment 
-            if local_nav.see_obstacle():
-                local_nav.avoid_obstacle()
+            # is there a kidnapping?
+            if motion_control.is_kidnapped(pos_measure, thymio):
+                 pos_estim = pos_measure
+                 path = global_nav.find_optimal_path(pos_estim, goal, obstacles)
+                 motion_control.set_path(path)
             
+            thymio = pos_estim
+            # movment 
+            if motion_control.see_local_obstacle(): 
+                # Avoid local obstacle
+                motion_control.avoid_local_obstacle()
             else: 
                 # Follow the global path
-                motion_control.follow_path(path)
+                motion_control.follow_path()
 
 
     except Exception as e:
@@ -63,7 +64,7 @@ async def main():
 
     # Exit program
     finally:
-        # Stop the robot
+        # Stop the robot    
         await node.stop()
         # Unlock the robot
         await node.unlock()

@@ -1,6 +1,10 @@
 #import necessary libraries
 #import numpy as np
 
+
+#! Fichier inutilisé ! A voir si on a besoin de le compléter ou pas
+
+
 class LocalNav:
     def __init__(self):
         pass
