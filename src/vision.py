@@ -13,20 +13,19 @@ class Map:
 
     #getters and setters can be added as needed
     def get_thymio_position(self):
+        # x,y angle in radians
         # Function that returns the current position of the Thymio robot on the map
         return
     
     def get_goal_position(self):
+        # x,y
         # Function that returns the positions of the goals on the map
         return
     
     def get_obstacles_positions(self):
+        # tableau of x,y
         # Function that returns the positions of the obstacles on the map
         return
-
-    def goal_not_reached(self, thymio_position, goal_position):
-        # Function that checks if the Thymio robot has reached the goal
-        return True
 
 
 

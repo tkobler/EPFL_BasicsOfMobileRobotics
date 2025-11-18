@@ -1,7 +1,6 @@
 from tdmclient import ClientAsync, aw # Warning: for the report, imports must be clearly stated at the top of the file
 from filter import Filter
 from global_nav import GlobalNav
-from local_nav import LocalNav
 from motion_control import MotionControl
 from vision import Map
 
@@ -15,37 +14,35 @@ async def main():
         map = Map()
         filter = Filter()
         global_nav = GlobalNav()
-        local_nav = LocalNav()
         motion_control = MotionControl()
         thymio, goal, obstacles = [],[],[] # positions of thymios, goals and obstacles
         goal_not_reached = True
     
         # Init the map, filter, global and local navigation modules
         map.init_map()
-        thymio = map.get_thymio_position() # pos x,y
+        thymio = map.get_thymio_position() # pos x,y and angle in radians
         goal = map.get_goal_position() # pos x,y 
-        obstacles = map.get_obstacles_positions() # list of pos x,y
-        path = global_nav.find_optimal_path(thymio, goal, obstacles) # list of pos x,y 
+        obstacles = map.get_obstacles_positions() # list of obstacles ((x,y), (x,y))
+        path = global_nav.find_optimal_path(thymio, goal, obstacles) # list of pos x,y en mm
         motion_control.set_path(path)
 
         # Main loop
         while goal_not_reached:
             # sensing
-            pos_measure = map.get_thymio_position()
-            left_speed, right_speed = motion_control.get_speed()
+            pos_measure = map.get_thymio_position() # pos x,y and angle in radians
+            left_speed, right_speed = motion_control.get_speed() # wheel speeds in mm/s
 
             # pose estimation
             pos_estim = filter.update(pos_measure, left_speed, right_speed)
 
             # is goal reached ?
-            if global_nav.is_goal_reached(thymio, goal):
+            if global_nav.is_goal_reached(pos_estim, goal):
                 goal_not_reached = False
                 motion_control.stop()
                 break
 
             # is there a kidnapping?
-            if motion_control.is_kidnapped(pos_measure, thymio):
-                 pos_estim = pos_measure
+            if motion_control.is_kidnapped(pos_estim, thymio):
                  path = global_nav.find_optimal_path(pos_estim, goal, obstacles)
                  motion_control.set_path(path)
             
@@ -53,10 +50,10 @@ async def main():
             # movment 
             if motion_control.see_local_obstacle(): 
                 # Avoid local obstacle
-                motion_control.avoid_local_obstacle()
+                motion_control.avoid_local_obstacle(thymio)
             else: 
                 # Follow the global path
-                motion_control.follow_path()
+                motion_control.follow_path(thymio)
 
 
     except Exception as e:
