@@ -7,6 +7,7 @@ from vision import Map
 async def main():
     # remark: see doc to know how to use this method: https://github.com/epfl-mobots/tdm-python/blob/main/doc/lowlevel.md
     try: 
+        client = ClientAsync()
         node = await client.wait_for_node()
         await node.lock()
 
