@@ -39,7 +39,7 @@ async def main():
             # is goal reached ?
             if global_nav.is_goal_reached(pos_estim, goal):
                 goal_not_reached = False
-                motion_control.stop()
+                await motion_control.stop(node)
                 break
 
             # is there a kidnapping?
@@ -49,12 +49,16 @@ async def main():
             
             thymio = pos_estim
             # movment 
-            if motion_control.see_local_obstacle(): 
+            if motion_control.see_local_obstacle(node): 
                 # Avoid local obstacle
-                motion_control.avoid_local_obstacle(thymio)
+                await motion_control.avoid_local_obstacle(thymio, node)
             else: 
                 # Follow the global path
-                motion_control.follow_path(thymio)
+                await motion_control.follow_path(thymio, node)
+
+            ### example of moving forward at constant speed
+            #await motion_control.move(node)
+            #await motion_control.see_local_obstacle(node)
 
 
     except Exception as e:
