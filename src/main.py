@@ -3,6 +3,7 @@ from filter import Filter
 from global_nav import GlobalNav
 from motion_control import MotionControl
 from vision import Map
+import constants as cte
 
 async def main():
     # remark: see doc to know how to use this method: https://github.com/epfl-mobots/tdm-python/blob/main/doc/lowlevel.md
@@ -11,30 +12,38 @@ async def main():
         node = await client.wait_for_node()
         await node.lock()
 
-        # Initialize instances of different modules
+        # ======================================
+        # Initialize modules
+        # ======================================
         map = Map()
-        filter = Filter()
-        global_nav = GlobalNav()
-        motion_control = MotionControl()
-        thymio, goal, obstacles = [],[],[] # positions of thymios, goals and obstacles
-        goal_not_reached = True
-    
-        # Init the map, filter, global and local navigation modules
         map.init_map()
+        thymio, goal, obstacles = [],[],[] # positions of thymios, goals and obstacles
         thymio = map.get_thymio_position() # pos x,y and angle in radians
         goal = map.get_goal_position() # pos x,y 
         obstacles = map.get_obstacles_positions() # list of obstacles ((x,y), (x,y))
+
+        filter = Filter(thymio)
+    
+        global_nav = GlobalNav()
         path = global_nav.find_optimal_path(thymio, goal, obstacles) # list of pos x,y en mm
+
+        motion_control = MotionControl()
         motion_control.set_path(path)
 
+        goal_not_reached = True
+    
+
+        # ======================================
         # Main loop
+        # ======================================
         while goal_not_reached:
             # sensing
             pos_measure = map.get_thymio_position() # pos x,y and angle in radians
             left_speed, right_speed = motion_control.get_speed() # wheel speeds in mm/s
 
+            delta_t = 0.1 # time elapsed since last measure in s
             # pose estimation
-            pos_estim = filter.update(pos_measure, left_speed, right_speed)
+            pos_estim = filter.update(pos_measure, delta_t, left_speed, right_speed)
 
             # is goal reached ?
             if global_nav.is_goal_reached(pos_estim, goal):
@@ -49,7 +58,7 @@ async def main():
             
             thymio = pos_estim
             # movment 
-            if motion_control.see_local_obstacle(node): 
+            if (await motion_control.see_local_obstacle(node)): 
                 # Avoid local obstacle
                 await motion_control.avoid_local_obstacle(thymio, node)
             else: 
