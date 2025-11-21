@@ -15,9 +15,9 @@ robot_state = {
 }
 
 # ======================================
-# Parameters (copy from Navigation.py)
+# Parameters (copy from constants.py)
 # ======================================
-SPEED_TO_MMS = 0.43478260869565216  # mm/s per Thymio speed unit (your current value)
+SPEED_TO_MMS = 0.032769  # mm/s per Thymio speed unit (your current value)
 L = 122.7                             # current guess for wheelbase in mm
 
 # Calibration motion
@@ -30,7 +30,7 @@ DT_NOMINAL = 0.05         # nominal sleep between iterations (s)
 
 
 # ======================================
-# Odometry update (same as Navigation.py)
+# Odometry update (same as constants.py)
 # ======================================
 def update_robot_state(v_l_raw, v_r_raw, dt):
     """
@@ -156,7 +156,7 @@ async def run_calibration(node, client):
                 print(f"Real measured angle: {theta_real_deg:.2f}°")
                 print("Suggested L_new = L_old * (theta_est / theta_real)")
                 print(f"           L_new ≈ {L_new:.2f} mm")
-                print("\nYou can copy this L_new back into Navigation.py.")
+                print("\nYou can copy this L_new back into constants.py.")
             else:
                 print("Real angle too small (or zero) to compute a meaningful L.")
         else:

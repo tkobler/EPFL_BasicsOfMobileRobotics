@@ -15,10 +15,10 @@ robot_state = {
 }
 
 # ======================================
-# Parameters (copy from Navigation.py)
+# Parameters (copy from constants.py)
 # ======================================
 SPEED_TO_MMS = 0.032769  # current guess: mm/s per Thymio speed unit
-L = 129                            # wheelbase in mm (same as in Navigation.py)
+L = 122.7                            # wheelbase in mm (same as in constants.py)
 
 # Calibration motion (straight line)
 CALIB_SPEED_CMD = 200      # motor.left.target = motor.right.target
@@ -29,7 +29,7 @@ DT_NOMINAL = 0.05          # nominal sleep between iterations (s)
 
 
 # ======================================
-# Odometry update (same as Navigation.py)
+# Odometry update (same as constants.py)
 # ======================================
 def update_robot_state(v_l_raw, v_r_raw, dt):
     """
@@ -154,7 +154,7 @@ async def run_calibration(node, client):
                 print(f"Real measured distance: {dist_real:.2f} mm")
                 print("Suggested SPEED_TO_MMS_new = SPEED_TO_MMS_old * (dist_real / dist_est)")
                 print(f"                 SPEED_TO_MMS_new ≈ {SPEED_new:.6f} mm/s per unit")
-                print("\nYou can copy this SPEED_TO_MMS_new back into Navigation.py.")
+                print("\nYou can copy this SPEED_TO_MMS_new back into constants.py.")
             else:
                 print("Real distance too small (or zero) to compute a meaningful factor.")
         else:
