@@ -6,8 +6,14 @@
 import asyncio
 import math
 import time
+import sys
+import os
 import numpy as np
 from tdmclient import ClientAsync
+
+# Add parent directory to path to import constants
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+import constants as cte
 
 
 # ======================================
@@ -20,13 +26,13 @@ robot_state = {
 }
 
 # ======================================
-# Parameters (same as calibration scripts)
+# Parameters (imported from constants)
 # ======================================
-SPEED_TO_MMS = 0.032769  # mm/s per Thymio speed unit
-L = 122.7                # wheelbase in mm
+SPEED_TO_MMS = cte.SPEED_TO_MMS
+L = cte.WHEELBASE
 
 # Test motion parameters
-TEST_SPEED_CMD = 200      # motor speed command
+TEST_SPEED_CMD = cte.MAIN_MOTOR_SPEED  # motor speed command
 TEST_DURATION = 3.0       # duration of each test run in seconds
 NUM_TRIALS = 10           # number of trials to collect data
 DT_NOMINAL = 0.05         # nominal sleep between iterations (s)
@@ -243,11 +249,9 @@ async def determine_Q(node, client):
     var_y = np.var(error_y)
     var_theta = np.var(error_theta)
     
-    # Variances for wheel speeds
+    # Variances for wheel speeds (use individual variances for each wheel)
     var_speed_left = np.var(all_speeds_left)
     var_speed_right = np.var(all_speeds_right)
-    # Average speed variance
-    var_speed = (var_speed_left + var_speed_right) / 2.0
     
     print(f"\nVariances calculées:")
     print(f"  var(x)     = {var_x:.6f} mm²")
@@ -255,10 +259,10 @@ async def determine_Q(node, client):
     print(f"  var(theta) = {var_theta:.6f} rad²")
     print(f"  var(speed_left)  = {var_speed_left:.6f}")
     print(f"  var(speed_right) = {var_speed_right:.6f}")
-    print(f"  var(speed_avg)   = {var_speed:.6f}")
     
     # Construct Q matrix (diagonal covariance matrix)
-    Q = np.diag([var_x, var_y, var_theta, var_speed, var_speed])
+    # Use separate variances for left and right wheel speeds
+    Q = np.diag([var_x, var_y, var_theta, var_speed_left, var_speed_right])
     
     print(f"\nMatrice Q (covariance du bruit de mouvement):")
     print(Q)
@@ -267,7 +271,9 @@ async def determine_Q(node, client):
     print(f"X_MOVE_UNCERT = {var_x:.6f}  # uncertainty in x direction (movement noise)")
     print(f"Y_MOVE_UNCERT = {var_y:.6f}  # uncertainty in y direction (movement noise)")
     print(f"THETA_MOVE_UNCERT = {var_theta:.6f}  # uncertainty in theta (movement noise)")
-    print(f"SPEED_MOVE_UNCERT = {var_speed:.6f}  # uncertainty in wheel speed (movement noise)")
+    print(f"# Note: Si les vitesses gauche et droite ont des variances différentes,")
+    print(f"# utilisez la valeur maximale ou la moyenne pour SPEED_MOVE_UNCERT")
+    print(f"SPEED_MOVE_UNCERT = {max(var_speed_left, var_speed_right):.6f}  # uncertainty in wheel speed (movement noise)")
     
     # Statistical summary
     print(f"\n" + "=" * 60)
