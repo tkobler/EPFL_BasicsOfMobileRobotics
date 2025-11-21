@@ -42,7 +42,7 @@ class Filter:
         command = np.array([left_command-cte.MAIN_MOTOR_SPEED, right_command-cte.MAIN_MOTOR_SPEED]) # displacement from wheel speeds
 
 
-        #TODO : bien définir le sens de rotation du robot (pour le moment c'est CW positif)
+        #TODO : bien définir le sens de rotation du robot (pour le moment c'est CW positif) -> POUR A ET B
         self.A = np.array([[1, 0, 0, np.cos(self.state[2])/2*delta_t, np.cos(self.state[2])/2*delta_t],
                            [0, 1, 0, np.sin(self.state[2])/2*delta_t, np.sin(self.state[2])/2*delta_t],
                            [0, 0, 1, 1/cte.WHEELBASE*delta_t, - 1/cte.WHEELBASE*delta_t],
