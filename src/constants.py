@@ -14,11 +14,13 @@ MAIN_MOTOR_SPEED = 200  # main motor speed command in Thymio units
 # ======================================
 # Uncertainties for the Kalman Filter
 # ======================================
+# Matrice Q : process noise covariance matrix
 X_MOVE_UNCERT = 0.1  # uncertainty in x direction (movment noise)
 Y_MOVE_UNCERT = 0.1  # uncertainty in y direction (movment noise)
 THETA_MOVE_UNCERT = 0.05  # uncertainty in theta (movment noise)
 SPEED_MOVE_UNCERT = 1.0  # uncertainty in wheel speed (movment noise)
 
+# Matrice R : measurement noise covariance matrix
 X_MEAS_UNCERT = 0.1  # uncertainty in x direction from camera (measurement noise)
 Y_MEAS_UNCERT = 0.1  # uncertainty in y direction from camera (measurement noise)
 THETA_MEAS_UNCERT = 0.9  # uncertainty in theta from camera (measurement noise)
