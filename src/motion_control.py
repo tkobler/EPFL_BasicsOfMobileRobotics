@@ -3,6 +3,7 @@
 
 
 from platform import node
+import time
 import constants as cte
 
 
@@ -11,12 +12,17 @@ CALIB_SPEED_CMD = 200
 
 
 class MotionControl:
-    def __init__(self):
+    def __init__(self, node=None, client=None):
+        self.node = node
+        self.client = client
         self.path = []
-        self.speed_left = 1
-        self.speed_right = 1
-        self.speed_left_mes = 1
-        self.speed_right_mes = 1
+        self.speed_left = 0
+        self.speed_right = 0
+        self.speed_left_mes = 0
+        self.speed_right_mes = 0
+        self.time = time.time()
+        self.left_command = 0
+        self.right_command = 0
 
 
     def is_kidnapped(self, actual_pos, prev_pos):
@@ -24,29 +30,40 @@ class MotionControl:
         return
     
     ### Global navigation ================
-    async def follow_path(self, current_pos, node):
+    async def follow_path(self, current_pos):
         # Follow a given path
         # set speed des deux moteurs pour atteindre l'objectif du prochain élément dans le self.path
         return
 
     ### Local obstacle avoidance ========
-    async def see_local_obstacle(self, node):
+    async def see_local_obstacle(self):
         # Logic to detect local obstacles
         return
 
-    async def avoid_local_obstacle(self, current_pos, node):
+    async def avoid_local_obstacle(self, current_pos):
         # Logic to avoid the local obstacle
         # On fait une manoeuvre d'évitement 
         return 
-    
-    async def stop(self, node):
-        # Stop the robot
-        return
 
     ### getters and setters ================
-    def get_speed(self):
+    async def get_speed(self):
         # Return current wheel speeds
+        await self.node.wait_for_variables({"motor.left.speed", "motor.right.speed"})
+        self.speed_left_mes = self.node["motor.left.speed"] * cte.SPEED_TO_MMS  # speed in mm/s
+        self.speed_right_mes = self.node["motor.right.speed"] * cte.SPEED_TO_MMS  # speed in mm/s
+        await self.client.sleep(0.01)
         return self.speed_left_mes, self.speed_right_mes
+    
+    def get_time(self):
+        # Return time elapsed since last call
+        current_time = time.time()
+        delta_t = current_time - self.time
+        self.time = current_time
+        return delta_t
+    
+    def get_commanded_speed(self):
+        # Return last commanded wheel speeds
+        return self.left_command, self.right_command
 
     def set_path(self, path):
         # Set a new path for the robot
@@ -55,19 +72,19 @@ class MotionControl:
     
 
     ### Navigation in general ================
-    async def stop(self, node):
+    async def stop(self):
         # Stop the robot
+        await self.node.set_variables(motors(0, 0))
         return
 
-    async def move(self, node):
+    async def move(self):
         # Logic to move the robot based on current path and obstacle detection
         # Ensure we see motor speeds
-        await node.wait_for_variables({"motor.left.speed", "motor.right.speed"})
-        self.speed_left_mes = node["motor.left.speed"] # speed in Thymio units
-        self.speed_right_mes = node["motor.right.speed"] # speed in Thymio units
+        await self.node.wait_for_variables({"motor.left.speed", "motor.right.speed"})
+        self.speed_left_mes = self.node["motor.left.speed"] # speed in Thymio units
+        self.speed_right_mes = self.node["motor.right.speed"] # speed in Thymio units
         # print("Moving forward")
-        # print(f"Left motor speed: {self.speed_left_mes}, Right motor speed: {self.speed_right_mes}")
-        await node.set_variables(motors(CALIB_SPEED_CMD, CALIB_SPEED_CMD))
+        await self.node.set_variables(motors(CALIB_SPEED_CMD, CALIB_SPEED_CMD))
         return
 
 

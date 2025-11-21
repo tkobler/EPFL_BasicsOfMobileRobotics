@@ -5,8 +5,8 @@ from motion_control import MotionControl
 from vision import Map
 import constants as cte
 
+
 async def main():
-    # remark: see doc to know how to use this method: https://github.com/epfl-mobots/tdm-python/blob/main/doc/lowlevel.md
     try: 
         client = ClientAsync()
         node = await client.wait_for_node()
@@ -27,11 +27,10 @@ async def main():
         global_nav = GlobalNav()
         path = global_nav.find_optimal_path(thymio, goal, obstacles) # list of pos x,y en mm
 
-        motion_control = MotionControl()
+        motion_control = MotionControl(node, client)
         motion_control.set_path(path)
 
         goal_not_reached = True
-    
 
         # ======================================
         # Main loop
@@ -39,16 +38,17 @@ async def main():
         while goal_not_reached:
             # sensing
             pos_measure = map.get_thymio_position() # pos x,y and angle in radians
-            left_speed, right_speed = motion_control.get_speed() # wheel speeds in mm/s
+            left_speed_mes, right_speed_mes = await motion_control.get_speed() # wheel speeds in mm/s
+            delta_t = motion_control.get_time() # time elapsed since last measure in s
+            left_command, right_command = motion_control.get_commanded_speed() # last commanded wheel speeds
 
-            delta_t = 0.1 # time elapsed since last measure in s
             # pose estimation
-            pos_estim = filter.update(pos_measure, delta_t, left_speed, right_speed)
+            pos_estim = filter.update(pos_measure, delta_t, left_speed_mes, right_speed_mes, left_command, right_command)
 
             # is goal reached ?
             if global_nav.is_goal_reached(pos_estim, goal):
                 goal_not_reached = False
-                await motion_control.stop(node)
+                await motion_control.stop()
                 break
 
             # is there a kidnapping?
@@ -58,17 +58,12 @@ async def main():
             
             thymio = pos_estim
             # movment 
-            if (await motion_control.see_local_obstacle(node)): 
+            if (await motion_control.see_local_obstacle()): 
                 # Avoid local obstacle
-                await motion_control.avoid_local_obstacle(thymio, node)
+                await motion_control.avoid_local_obstacle(thymio)
             else: 
                 # Follow the global path
-                await motion_control.follow_path(thymio, node)
-
-            ### example of moving forward at constant speed
-            #await motion_control.move(node)
-            #await motion_control.see_local_obstacle(node)
-
+                await motion_control.follow_path(thymio)
 
     except Exception as e:
         print(f"An error occurred: {e}")
