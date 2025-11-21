@@ -10,6 +10,8 @@ CALIB_LEFT_WHEEL = 1.05
 CALIB_RIGHT_WHEEL = 1.0
 MAIN_MOTOR_SPEED = 200  # main motor speed command in Thymio units
 
+KIDNAP_THRESHOLD = 100  # threshold in mm for kidnapping detection
+
 
 # ======================================
 # Uncertainties for the Kalman Filter

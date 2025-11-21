@@ -7,10 +7,6 @@ import time
 import constants as cte
 
 
-kidnap_treshold = 5  # Example threshold value
-CALIB_SPEED_CMD = 200  
-
-
 class MotionControl:
     def __init__(self, node=None, client=None):
         self.node = node
@@ -27,6 +23,7 @@ class MotionControl:
 
     def is_kidnapped(self, actual_pos, prev_pos):
         # Check if there is a kidnapping event
+        a = cte.KIDNAP_THRESHOLD
         return
     
     ### Global navigation ================
@@ -84,7 +81,7 @@ class MotionControl:
         self.speed_left_mes = self.node["motor.left.speed"] # speed in Thymio units
         self.speed_right_mes = self.node["motor.right.speed"] # speed in Thymio units
         # print("Moving forward")
-        await self.node.set_variables(motors(CALIB_SPEED_CMD, CALIB_SPEED_CMD))
+        await self.node.set_variables(motors(cte.MAIN_MOTOR_SPEED, cte.MAIN_MOTOR_SPEED))
         return
 
 
