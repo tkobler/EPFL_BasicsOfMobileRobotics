@@ -49,6 +49,7 @@ async def main():
             # sensing
             carte.afficher_video()
             pos_measure = carte.get_thymio_position() # pos x,y and angle in radians
+            carte.dessin_point((cte.ENV_LARGEUR)/2,(cte.ENV_LONGUEUR)/2)
             print(pos_measure)
             await client.sleep(0.05)
             left_speed_mes, right_speed_mes = await motion_control.get_speed() # wheel speeds in mm/s

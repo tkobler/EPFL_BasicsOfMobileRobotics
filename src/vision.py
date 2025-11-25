@@ -89,6 +89,43 @@ class Map:
             cv2.imshow('Detection ArUco - Webcam', derniere_frame)
             return cv2.waitKey(1) & 0xFF
         return -1
+    def dessin_point(self, x, y):
+        """
+        Transforme un point de l'espace transformé vers l'espace caméra (transformation inverse).
+        Dessine le point résultant sur la frame avec une couleur vive.
+
+        Args:
+            x: Coordonnée x dans l'espace transformé
+            y: Coordonnée y dans l'espace transformé
+        """
+        global matrice_homographie, derniere_frame
+
+        if matrice_homographie is None:
+            return
+
+        if derniere_frame is None:
+            return
+
+        try:
+            # Calculer la matrice d'homographie inverse
+            matrice_inverse = np.linalg.inv(matrice_homographie)
+
+            # Créer le point à transformer
+            point = np.array([[x-cte.LARGEUR_MARQUEUR, y-cte.LARGEUR_MARQUEUR]], dtype=np.float32)
+            point = point.reshape(-1, 1, 2)
+
+            # Appliquer la transformation inverse
+            point_transforme = cv2.perspectiveTransform(point, matrice_inverse)
+
+            # Extraire les coordonnées
+            x_camera = int(point_transforme[0][0][0])
+            y_camera = int(point_transforme[0][0][1])
+
+            # Dessiner le point sur la frame avec une couleur vive (rouge fluo)
+            cv2.circle(derniere_frame, (x_camera, y_camera), 10, (0, 0, 255), -1)
+
+        except Exception:
+            pass
 
     def stop(self):
         """
