@@ -9,12 +9,11 @@ class Filter:
         self.A = None  # state transition matrix
         self.C = np.eye(5)  # observation matrix
         #TODO : à ajuster avec des valeurs à tester
-        self.Q = np.diag([cte.X_MOVE_UNCERT, cte.Y_MOVE_UNCERT, cte.THETA_MOVE_UNCERT, cte.SPEED_MOVE_UNCERT, cte.SPEED_MOVE_UNCERT])  # displacement noise covariance  
+        self.Q = np.diag([cte.X_MOVE_UNCERT, cte.Y_MOVE_UNCERT, cte.THETA_MOVE_UNCERT, cte.SPEED_MOVE_UNCERT_L, cte.SPEED_MOVE_UNCERT_R])  # displacement noise covariance  
         self.R = None  # measurement noise covariance
         #TODO : à ajuster avec des valeurs à tester
-        self.R_with_camera = np.diag([cte.X_MEAS_UNCERT, cte.Y_MEAS_UNCERT, cte.THETA_MEAS_UNCERT, cte.SPEED_MES_UNCERT, cte.SPEED_MES_UNCERT])  # If camera feed is available  
-        self.R_no_camera = np.diag([np.inf, np.inf, np.inf, cte.SPEED_MES_UNCERT, cte.SPEED_MES_UNCERT])  # If no camera feed we set high uncertainty so the measurment is ignored
-
+        self.R_with_camera = np.diag([cte.X_MEAS_UNCERT, cte.Y_MEAS_UNCERT, cte.THETA_MEAS_UNCERT, cte.SPEED_MES_UNCERT_L, cte.SPEED_MES_UNCERT_R])  # If camera feed is available  
+        self.R_no_camera = np.diag([np.inf, np.inf, np.inf, cte.SPEED_MES_UNCERT_L, cte.SPEED_MES_UNCERT_R])  # If no camera feed we set high uncertainty so the measurment is ignored
 
     def update(self, measured_pos, Ts, ls, rs):
         """
