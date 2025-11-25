@@ -40,10 +40,9 @@ async def main():
             pos_measure = map.get_thymio_position() # pos x,y and angle in radians
             left_speed_mes, right_speed_mes = await motion_control.get_speed() # wheel speeds in mm/s
             delta_t = motion_control.get_time() # time elapsed since last measure in s
-            left_command, right_command = motion_control.get_commanded_speed() # last commanded wheel speeds
 
             # pose estimation
-            pos_estim = filter.update(pos_measure, delta_t, left_speed_mes, right_speed_mes, left_command, right_command)
+            pos_estim = filter.update(pos_measure, delta_t, left_speed_mes, right_speed_mes)
 
             # is goal reached ?
             if global_nav.is_goal_reached(pos_estim, goal):
