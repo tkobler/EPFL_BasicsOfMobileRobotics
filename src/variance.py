@@ -8,6 +8,7 @@ import math
 import time
 import numpy as np
 from tdmclient import ClientAsync
+from vision import Map
 
 
 
@@ -299,6 +300,168 @@ async def calibrate_Q_matrix(node, client):
     return Q
 
 
+async def calibrate_R_camera():
+    """
+    Fonction pour déterminer la variance R des mesures de position par caméra.
+    
+    Cette fonction mesure la variance des CAPTEURS de position (x, y, theta) 
+    fournis par la caméra. Le robot reste statique pendant que nous collectons
+    de nombreuses mesures pour calculer leur variance (bruit de mesure).
+    
+    Returns:
+        tuple: (var_x_camera, var_y_camera, var_theta_camera) - variances des mesures 
+               de position par caméra en (mm², mm², rad²)
+    """
+    
+    print("\n" + "=" * 60)
+    print("CALIBRATION DE R - VARIANCE DES MESURES CAMÉRA")
+    print("=" * 60)
+    print("\nCette procédure mesure la variance des CAPTEURS de position par caméra.")
+    print("Le robot restera statique pendant que nous collectons de nombreuses mesures.")
+    print("\nVous aurez besoin de:")
+    print("  - Caméra correctement positionnée au-dessus de la zone")
+    print("  - Les 4 marqueurs ArUco de référence (ID 0-3) visibles")
+    print("  - Le Thymio avec son marqueur ArUco (ID 4) sur la carte")
+    print("  - Une position stable pour le robot (ne pas le toucher!)")
+    print()
+    
+    # Initialiser la caméra
+    print("Initialisation de la caméra...")
+    carte = Map()
+    carte.init_map(camera_id=0)
+    
+    print("\nPréparez la carte avec les 4 marqueurs de référence visibles.")
+    print("Appuyez sur 's' pour initialiser la map.")
+    while True:
+        key = carte.afficher_video()
+        if key == ord('s'):
+            break
+    
+    print("\nMap initialisée avec succès.")
+    print("\nPlacez le Thymio sur la map à une position stable.")
+    print("IMPORTANT: Ne touchez plus le robot pendant toute la durée du test!")
+    print("Appuyez sur 'c' pour commencer la calibration de la caméra.")
+    
+    while True:
+        key = carte.afficher_video()
+        if key == ord('c'):
+            break
+    
+    # Paramètres de la calibration
+    num_samples = int(input("\nCombien de mesures à collecter ? (recommandé: 100-200): ") or "150")
+    delay_ms = 50  # 50ms entre chaque mesure (20Hz)
+    
+    print(f"\nCollecte de {num_samples} mesures...")
+    print("Le robot doit rester TOTALEMENT immobile!")
+    print("Appuyez sur CTRL+C pour arrêter prématurément si nécessaire.\n")
+    
+    # Listes pour stocker les mesures
+    x_measurements = []
+    y_measurements = []
+    theta_measurements = []
+    
+    # Collecter les mesures
+    samples_collected = 0
+    failed_detections = 0
+    
+    import time
+    while samples_collected < num_samples:
+        try:
+            # Afficher la vidéo (non bloquant)
+            carte.afficher_video()
+            
+            # Obtenir la position du Thymio
+            pos = carte.get_thymio_position()
+            
+            if pos is not None and len(pos) == 3:
+                x, y, theta = pos
+                x_measurements.append(x)
+                y_measurements.append(y)
+                theta_measurements.append(theta)
+                samples_collected += 1
+                
+                # Afficher la progression tous les 10 échantillons
+                if samples_collected % 10 == 0:
+                    print(f"Échantillons collectés: {samples_collected}/{num_samples} "
+                          f"(détections échouées: {failed_detections})")
+            else:
+                failed_detections += 1
+                if failed_detections > 20:
+                    print("\nATTENTION: Trop de détections échouées!")
+                    print("Vérifiez que le marqueur du Thymio est bien visible.")
+            
+            # Attendre avant la prochaine mesure
+            time.sleep(delay_ms / 1000.0)
+            
+        except KeyboardInterrupt:
+            print("\n\nArrêt prématuré par l'utilisateur.")
+            break
+    
+    # Arrêter la caméra
+    carte.stop()
+    
+    # Vérifier qu'on a assez de mesures
+    if len(x_measurements) < 10:
+        print("\n\nERREUR: Pas assez de mesures collectées!")
+        print(f"Seulement {len(x_measurements)} mesures valides.")
+        return None, None, None
+    
+    # Convertir en numpy arrays
+    x_measurements = np.array(x_measurements)
+    y_measurements = np.array(y_measurements)
+    theta_measurements = np.array(theta_measurements)
+    
+    # Calculer les statistiques
+    var_x = np.var(x_measurements)
+    var_y = np.var(y_measurements)
+    var_theta = np.var(theta_measurements)
+    
+    mean_x = np.mean(x_measurements)
+    mean_y = np.mean(y_measurements)
+    mean_theta = np.mean(theta_measurements)
+    
+    std_x = np.sqrt(var_x)
+    std_y = np.sqrt(var_y)
+    std_theta = np.sqrt(var_theta)
+    
+    # Afficher les résultats
+    print("\n" + "=" * 60)
+    print("RÉSULTATS - VARIANCE DES MESURES CAMÉRA")
+    print("=" * 60)
+    print(f"\nNombre d'échantillons collectés: {len(x_measurements)}")
+    print(f"Détections échouées: {failed_detections}")
+    
+    print("\n--- Position X ---")
+    print(f"Moyenne: {mean_x:.2f} mm")
+    print(f"Variance: {var_x:.6f} mm²")
+    print(f"Écart-type: {std_x:.2f} mm")
+    print(f"Min: {np.min(x_measurements):.2f} mm, Max: {np.max(x_measurements):.2f} mm")
+    
+    print("\n--- Position Y ---")
+    print(f"Moyenne: {mean_y:.2f} mm")
+    print(f"Variance: {var_y:.6f} mm²")
+    print(f"Écart-type: {std_y:.2f} mm")
+    print(f"Min: {np.min(y_measurements):.2f} mm, Max: {np.max(y_measurements):.2f} mm")
+    
+    print("\n--- Angle Theta ---")
+    print(f"Moyenne: {mean_theta:.4f} rad ({mean_theta * 180 / np.pi:.2f}°)")
+    print(f"Variance: {var_theta:.8f} rad²")
+    print(f"Écart-type: {std_theta:.4f} rad ({std_theta * 180 / np.pi:.2f}°)")
+    print(f"Min: {np.min(theta_measurements):.4f} rad, Max: {np.max(theta_measurements):.4f} rad")
+    
+    print("\n" + "=" * 60)
+    print("Valeurs pour constants.py (matrice R):")
+    print("=" * 60)
+    print(f"X_MEAS_UNCERT = {var_x:.6f}  # mm²")
+    print(f"Y_MEAS_UNCERT = {var_y:.6f}  # mm²")
+    print(f"THETA_MEAS_UNCERT = {var_theta:.8f}  # rad²")
+    
+    print("\n\nCode Python pour la partie caméra de la matrice R:")
+    print(f"R_camera = np.diag([{var_x:.6f}, {var_y:.6f}, {var_theta:.8f}, var_speed_L, var_speed_R])")
+    
+    return var_x, var_y, var_theta
+
+
 async def calibrate_R_speeds(node, client):
     """
     Fonction pour déterminer la variance R des mesures de vitesse des roues.
@@ -316,7 +479,6 @@ async def calibrate_R_speeds(node, client):
     print("=" * 60)
     print("\nCette procédure mesure la variance des CAPTEURS de vitesse.")
     print("Le robot roulera à vitesse constante pendant que nous collectons")
-    print("de nombreuses mesures pour calculer leur variance (bruit de mesure).\n")
     
     await node.wait_for_variables({"motor.left.speed", "motor.right.speed"})
     
@@ -385,23 +547,52 @@ async def main():
         print("=" * 60)
         print("\nQue souhaitez-vous calibrer ?")
         print("  1. Matrice Q (covariance du bruit de processus)")
-        print("  2. Matrice R - partie vitesses (covariance du bruit de mesure)")
-        print("  3. Les deux (Q puis R)")
+        print("  2. Matrice R - partie caméra (covariance du bruit de mesure position)")
+        print("  3. Matrice R - partie vitesses (covariance du bruit de mesure vitesse)")
+        print("  4. Matrice R complète (caméra + vitesses)")
+        print("  5. Tout calibrer (Q puis R complet)")
         
-        choice = input("\nVotre choix (1, 2 ou 3) : ").strip()
+        choice = input("\nVotre choix (1, 2, 3, 4 ou 5) : ").strip()
         
         if choice == "1":
             Q_matrix = await calibrate_Q_matrix(node, client)
             
         elif choice == "2":
-            var_left, var_right = await calibrate_R_speeds(node, client)
+            var_x, var_y, var_theta = await calibrate_R_camera()
             
         elif choice == "3":
-            print("\n### PARTIE 1/2 : Calibration de Q ###")
-            Q_matrix = await calibrate_Q_matrix(node, client)
+            var_left, var_right = await calibrate_R_speeds(node, client)
+            
+        elif choice == "4":
+            print("\n### PARTIE 1/2 : Calibration de R (caméra) ###")
+            var_x, var_y, var_theta = await calibrate_R_camera()
             
             print("\n\n### PARTIE 2/2 : Calibration de R (vitesses) ###")
             var_left, var_right = await calibrate_R_speeds(node, client)
+            
+            if var_x is not None and var_left is not None:
+                print("\n" + "=" * 60)
+                print("MATRICE R COMPLÈTE")
+                print("=" * 60)
+                print(f"R = np.diag([{var_x:.6f}, {var_y:.6f}, {var_theta:.8f}, "
+                      f"{var_left:.6f}, {var_right:.6f}])")
+            
+        elif choice == "5":
+            print("\n### PARTIE 1/3 : Calibration de Q ###")
+            Q_matrix = await calibrate_Q_matrix(node, client)
+            
+            print("\n\n### PARTIE 2/3 : Calibration de R (caméra) ###")
+            var_x, var_y, var_theta = await calibrate_R_camera()
+            
+            print("\n\n### PARTIE 3/3 : Calibration de R (vitesses) ###")
+            var_left, var_right = await calibrate_R_speeds(node, client)
+            
+            if var_x is not None and var_left is not None:
+                print("\n" + "=" * 60)
+                print("MATRICE R COMPLÈTE")
+                print("=" * 60)
+                print(f"R = np.diag([{var_x:.6f}, {var_y:.6f}, {var_theta:.8f}, "
+                      f"{var_left:.6f}, {var_right:.6f}])")
             
         else:
             print("Choix invalide. Arrêt du programme.")
@@ -411,6 +602,7 @@ async def main():
         print("CALIBRATION TERMINÉE")
         print("=" * 60)
         print("\nCopiez les valeurs affichées ci-dessus dans votre fichier constants.py")
+    
         
     except KeyboardInterrupt:
         print("\n\nInterruption par l'utilisateur.")
