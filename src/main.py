@@ -52,7 +52,7 @@ async def main():
         while goal_not_reached:
             # sensing
             pos_measure = carte.get_thymio_position() # pos x,y and angle in radians
-            carte.dessin_point((cte.ENV_LARGEUR)/2,(cte.ENV_LONGUEUR)/2)
+            carte.dessin_point(pos_measure[0],pos_measure[1], pos_measure[2])
             carte.afficher_video()
             print(pos_measure)
             await client.sleep(0.05)
