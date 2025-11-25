@@ -51,8 +51,8 @@ async def main():
         # ======================================
         while goal_not_reached:
             # sensing
-            carte.afficher_video()
             pos_measure = carte.get_thymio_position() # pos x,y and angle in radians
+            carte.afficher_video()
             carte.dessin_point((cte.ENV_LARGEUR)/2,(cte.ENV_LONGUEUR)/2)
             print(pos_measure)
             await client.sleep(0.05)
