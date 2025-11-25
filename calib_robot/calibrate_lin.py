@@ -17,15 +17,13 @@ robot_state = {
 # ======================================
 # Parameters (copy from constants.py)
 # ======================================
-SPEED_TO_MMS = 0.32769  # current guess: mm/s per Thymio speed unit
+SPEED_TO_MMS = 0.032769  # current guess: mm/s per Thymio speed unit
 L = 122.7                            # wheelbase in mm (same as in constants.py)
 
 # Calibration motion (straight line)
 CALIB_SPEED_CMD = 200      # motor.left.target = motor.right.target
 TARGET_DIST_MM = 500.0     # stop when odom distance >= this (mm)
 CALIB_MAX_DURATION = 6.0   # safety timeout in seconds
-CALIB_LEFT_WHEEL = 1.05
-CALIB_RIGHT_WHEEL = 1.0
 
 DT_NOMINAL = 0.05          # nominal sleep between iterations (s)
 
@@ -58,9 +56,10 @@ def update_robot_state(v_l_raw, v_r_raw, dt):
 
 
 def motors(left, right):
+    """Helper to format motor commands."""
     return {
-        "motor.left.target": [int(left * CALIB_LEFT_WHEEL)],
-        "motor.right.target": [int(right * CALIB_RIGHT_WHEEL)],
+        "motor.left.target": [int(left)],
+        "motor.right.target": [int(right)],
     }
 
 

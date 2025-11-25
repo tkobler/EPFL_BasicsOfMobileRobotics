@@ -51,33 +51,36 @@ async def main():
         # ======================================
         while goal_not_reached:
             # sensing
-            carte.afficher_video()
             pos_measure = carte.get_thymio_position() # pos x,y and angle in radians
+            carte.dessin_point(pos_measure[0],pos_measure[1], pos_measure[2])
+            carte.afficher_video()
+            print(pos_measure)
+            await client.sleep(0.05)
             left_speed_mes, right_speed_mes = await motion_control.get_speed() # wheel speeds in mm/s
             delta_t = motion_control.get_time() # time elapsed since last measure in s
 
             # pose estimation
-            pos_estim = filter.update(pos_measure, delta_t, left_speed_mes, right_speed_mes)
+           # pos_estim = filter.update(pos_measure, delta_t, left_speed_mes, right_speed_mes)
 
-            # # is goal reached ?
-            # if global_nav.is_goal_reached(pos_estim, goal):
-            #     goal_not_reached = False
-            #     await motion_control.stop()
-            #     break
+            """ is goal reached ?
+            if global_nav.is_goal_reached(pos_estim, goal):
+                goal_not_reached = False
+                await motion_control.stop()
+                break
 
-            # # is there a kidnapping?
-            # if motion_control.is_kidnapped(pos_estim, thymio):
-            #      path = global_nav.find_optimal_path(pos_estim, goal, obstacles)
-            #      motion_control.set_path(path)
+            # is there a kidnapping?
+            if motion_control.is_kidnapped(pos_estim, thymio):
+                 path = global_nav.find_optimal_path(pos_estim, goal, obstacles)
+                 motion_control.set_path(path)
             
-            # thymio = pos_estim
-            # # movment 
-            # if (await motion_control.see_local_obstacle()): 
-            #     # Avoid local obstacle
-            #     await motion_control.avoid_local_obstacle(thymio)
-            # else: 
-            #     # Follow the global path
-            #     await motion_control.follow_path(thymio)
+            thymio = pos_estim
+            # movment 
+            if (await motion_control.see_local_obstacle()): 
+                # Avoid local obstacle
+                await motion_control.avoid_local_obstacle(thymio)
+            else: 
+                # Follow the global path
+                await motion_control.follow_path(thymio)"""
 
     except Exception as e:
         print(f"An error occurred: {e}")
