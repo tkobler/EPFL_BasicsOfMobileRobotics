@@ -51,13 +51,16 @@ async def main():
         # ======================================
         while goal_not_reached:
             # sensing
-            carte.afficher_video()
             pos_measure = carte.get_thymio_position() # pos x,y and angle in radians
             left_speed_mes, right_speed_mes = await motion_control.get_speed() # wheel speeds in mm/s
             delta_t = motion_control.get_time() # time elapsed since last measure in s
 
-            # pose estimation
+            # position estimation
             pos_estim = filter.update(pos_measure, delta_t, left_speed_mes, right_speed_mes)
+
+            # position display
+            carte.dessin_point(pos_estim[0],pos_estim[1], pos_estim[2])
+            carte.afficher_video()
 
             # # is goal reached ?
             # if global_nav.is_goal_reached(pos_estim, goal):
