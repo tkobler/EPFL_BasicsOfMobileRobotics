@@ -21,15 +21,14 @@ LARGEUR_MARQUEUR = 70  # Largeur d'un marqueur ArUco
 # Uncertainties for the Kalman Filter
 # ======================================
 # Matrice Q : process noise covariance matrix
-X_MOVE_UNCERT = 0.1  # uncertainty in x direction (movment noise) #TODO
-Y_MOVE_UNCERT = 0.1  # uncertainty in y direction (movment noise) #TODO
-THETA_MOVE_UNCERT = 0.05  # uncertainty in theta (movment noise) #TODO
-SPEED_MOVE_UNCERT_L = 1.0  # uncertainty in left wheel speed (movment noise) #TODO
-SPEED_MOVE_UNCERT_R = 1.0  # uncertainty in right wheel speed (movment noise) #TODO
-
+X_MOVE_UNCERT = 0.17  #[mm²] uncertainty in x direction (movment noise) #TODO
+Y_MOVE_UNCERT = 0.17  #[mm²] uncertainty in y direction (movment noise) #TODO
+THETA_MOVE_UNCERT = 0.05  #[rad²] uncertainty in theta (movment noise) #TODO
+SPEED_MOVE_UNCERT_L = 0.43  #[ (mm/s)² ] uncertainty in left wheel speed (movment noise) #TODO
+SPEED_MOVE_UNCERT_R = 0.45  #[ (mm/s)² ] uncertainty in right wheel speed (movment noise) #TODO
 # Matrice R : measurement noise covariance matrix
-X_MEAS_UNCERT = 0.1  # uncertainty in x direction from camera (measurement noise) #TODO
-Y_MEAS_UNCERT = 0.1  # uncertainty in y direction from camera (measurement noise) #TODO
-THETA_MEAS_UNCERT = 0.9  # uncertainty in theta from camera (measurement noise) #TODO
-SPEED_MES_UNCERT_L = 0.046983  # uncertainty in left wheel speed measurement
-SPEED_MES_UNCERT_R = 0.039215  # uncertainty in right wheel speed measurement
+X_MEAS_UNCERT = 0.25  #[mm²] uncertainty in x direction from camera (measurement noise)
+Y_MEAS_UNCERT = 0.25  #[mm²] uncertainty in y direction from camera (measurement noise)
+THETA_MEAS_UNCERT = 0.0007  #[rad²] uncertainty in theta from camera (measurement noise)
+SPEED_MES_UNCERT_L = 3.46  #[ (mm/s)² ] uncertainty in left wheel speed measurement
+SPEED_MES_UNCERT_R = 5.05  #[ (mm/s)² ] uncertainty in right wheel speed measurement

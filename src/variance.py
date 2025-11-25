@@ -348,7 +348,7 @@ async def calibrate_R_camera():
             break
     
     # Paramètres de la calibration
-    num_samples = int(input("\nCombien de mesures à collecter ? (recommandé: 100-200): ") or "150")
+    num_samples = 100  # nombre d'échantillons à collecter
     delay_ms = 50  # 50ms entre chaque mesure (20Hz)
     
     print(f"\nCollecte de {num_samples} mesures...")
