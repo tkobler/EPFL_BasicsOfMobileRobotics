@@ -7,7 +7,6 @@ class Filter:
         self.state = np.array(initial_pos + [0, 0]) # current position estimate (x, y, theta, left_speed, right_speed)
         self.var = np.diag([0.01, 0.01, 0.01, 0.01, 0.01]) # variance of the estimation #? on est très confiant de la première mesure prise par la caméra pour la position initiale du robot
         self.A = None  # state transition matrix
-        self.B = None  # control input matrix
         self.C = np.eye(5)  # observation matrix
         #TODO : à ajuster avec des valeurs à tester
         self.Q = np.diag([cte.X_MOVE_UNCERT, cte.Y_MOVE_UNCERT, cte.THETA_MOVE_UNCERT, cte.SPEED_MOVE_UNCERT, cte.SPEED_MOVE_UNCERT])  # displacement noise covariance  
@@ -17,17 +16,15 @@ class Filter:
         self.R_no_camera = np.diag([np.inf, np.inf, np.inf, cte.SPEED_MES_UNCERT, cte.SPEED_MES_UNCERT])  # If no camera feed we set high uncertainty so the measurment is ignored
 
 
-    def update(self, measured_pos, delta_t, left_speed, right_speed, left_command, right_command):
+    def update(self, measured_pos, Ts, ls, rs):
         """
         Position Estimation Filter
         
         param thymio_pos: actuator values for forward motion (x,y,theta)
         param measured_pos: measured position along x-axis from camera (x,y,theta)
-        param delta_t: time elapsed since last measure in s
-        param left_speed: left wheel speed in mm/s
-        param right_speed: right wheel speed in mm/s
-        param left_command: last commanded left wheel speed in mm/s
-        param right_command: last commanded right wheel speed in mm/s
+        param Ts: time elapsed since last measure in s
+        param ls: left wheel speed in mm/s
+        param rs: right wheel speed in mm/s
         
         return estim_pos: new a posteriori state estimation
         """
@@ -38,25 +35,18 @@ class Filter:
             self.R = self.R_with_camera
         
         # Convert function inputs to numpy arrays
-        state_meas = np.array(measured_pos + [left_speed, right_speed])  # measurement vector (x, y, theta, left_speed, right_speed)
-        command = np.array([left_command-cte.MAIN_MOTOR_SPEED, right_command-cte.MAIN_MOTOR_SPEED]) # displacement from wheel speeds
-
+        state_meas = np.array(measured_pos + [ls, rs])  # measurement vector (x, y, theta, left_speed, right_speed)
 
         #TODO : bien définir le sens de rotation du robot (pour le moment c'est CW positif) -> POUR A ET B
-        self.A = np.array([[1, 0, 0, np.cos(self.state[2])/2*delta_t, np.cos(self.state[2])/2*delta_t],
-                           [0, 1, 0, np.sin(self.state[2])/2*delta_t, np.sin(self.state[2])/2*delta_t],
-                           [0, 0, 1, 1/cte.WHEELBASE*delta_t, - 1/cte.WHEELBASE*delta_t],
+        self.A = np.array([[1, 0, 0, -np.cos(self.state[2])/2*Ts, np.cos(self.state[2])/2*Ts],
+                           [0, 1, 0, np.sin(self.state[2])/2*Ts, np.sin(self.state[2])/2*Ts],
+                           [0, 0, 1, 1/cte.WHEELBASE*Ts, - 1/cte.WHEELBASE*Ts],
                            [0, 0, 0, 1, 0],
                            [0, 0, 0, 0, 1]])
-        
-        self.B = np.array([[np.cos(self.state[2])/2*delta_t, np.cos(self.state[2])/2*delta_t],
-                           [np.sin(self.state[2])/2*delta_t, np.sin(self.state[2])/2*delta_t],
-                           [1/cte.WHEELBASE*delta_t, - 1/cte.WHEELBASE*delta_t],
-                           [1, 0],
-                           [0, 1]])
+    
 
         # Compute prediciton
-        state_pred = self.A@self.state + self.B@command
+        state_pred = self.A@self.state
         var_pred = self.A@self.var@self.A.T + self.Q
 
         # Compute innovation

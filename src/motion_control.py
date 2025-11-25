@@ -17,8 +17,6 @@ class MotionControl:
         self.speed_left_mes = 0
         self.speed_right_mes = 0
         self.time = time.time()
-        self.left_command = 0
-        self.right_command = 0
 
 
     def is_kidnapped(self, actual_pos, prev_pos):
@@ -57,10 +55,6 @@ class MotionControl:
         delta_t = current_time - self.time
         self.time = current_time
         return delta_t
-    
-    def get_commanded_speed(self):
-        # Return last commanded wheel speeds
-        return self.left_command, self.right_command
 
     def set_path(self, path):
         # Set a new path for the robot
