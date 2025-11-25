@@ -36,7 +36,6 @@ detection_thread = None
 running = False
 
 
-
 class Map:
     """
     Classe pour accéder aux informations de la carte (positions du Thymio, obstacles et objectif).
@@ -89,74 +88,6 @@ class Map:
             cv2.imshow('Detection ArUco - Webcam', derniere_frame)
             return cv2.waitKey(1) & 0xFF
         return -1
-    def dessin_point(self, x, y, angle=None):
-        """
-        Transforme un point de l'espace transformé vers l'espace caméra (transformation inverse).
-        Dessine le point résultant sur la frame avec une couleur vive.
-        Si un angle est fourni, dessine également un trait dans la direction de l'angle transformé.
-
-        Args:
-            x: Coordonnée x dans l'espace transformé
-            y: Coordonnée y dans l'espace transformé
-            angle: Angle en radians dans l'espace transformé (optionnel)
-        """
-        global matrice_homographie, derniere_frame
-
-        if matrice_homographie is None:
-            return
-
-        if derniere_frame is None:
-            return
-
-        try:
-            # Calculer la matrice d'homographie inverse
-            matrice_inverse = np.linalg.inv(matrice_homographie)
-
-            # Ajuster les coordonnées
-            x_ajuste = x - cte.LARGEUR_MARQUEUR
-            y_ajuste = y - cte.LARGEUR_MARQUEUR
-
-            if angle is not None:
-                # Transformer l'angle en créant un deuxième point dans la direction de l'angle
-                longueur = 50  # Longueur du vecteur de direction
-                x2 = x_ajuste + longueur * np.cos(angle)
-                y2 = y_ajuste + longueur * np.sin(angle)
-
-                # Créer les deux points à transformer
-                points = np.array([[x_ajuste, y_ajuste], [x2, y2]], dtype=np.float32)
-                points = points.reshape(-1, 1, 2)
-
-                # Appliquer la transformation inverse
-                points_transformes = cv2.perspectiveTransform(points, matrice_inverse)
-
-                # Extraire les coordonnées des points transformés
-                x_camera = int(points_transformes[0][0][0])
-                y_camera = int(points_transformes[0][0][1])
-                x2_camera = int(points_transformes[1][0][0])
-                y2_camera = int(points_transformes[1][0][1])
-
-                # Dessiner le point sur la frame avec une couleur vive (rouge fluo)
-                cv2.circle(derniere_frame, (x_camera, y_camera), 10, (0, 0, 255), -1)
-
-                # Dessiner le trait dans la direction de l'angle transformé
-                cv2.line(derniere_frame, (x_camera, y_camera), (x2_camera, y2_camera), (0, 255, 0), 3)
-            else:
-                # Créer le point à transformer
-                point = np.array([[x_ajuste, y_ajuste]], dtype=np.float32)
-                point = point.reshape(-1, 1, 2)
-
-                # Appliquer la transformation inverse
-                point_transforme = cv2.perspectiveTransform(point, matrice_inverse)
-
-                # Extraire les coordonnées
-                x_camera = int(point_transforme[0][0][0])
-                y_camera = int(point_transforme[0][0][1])
-
-                # Dessiner le point sur la frame avec une couleur vive (rouge fluo)
-                cv2.circle(derniere_frame, (x_camera, y_camera), 10, (0, 0, 255), -1)
-
-        except Exception:
-            pass
 
     def stop(self):
         """

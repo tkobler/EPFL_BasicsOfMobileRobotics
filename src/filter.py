@@ -9,12 +9,11 @@ class Filter:
         self.A = None  # state transition matrix
         self.C = np.eye(5)  # observation matrix
         #TODO : à ajuster avec des valeurs à tester
-        self.Q = np.diag([cte.X_MOVE_UNCERT, cte.Y_MOVE_UNCERT, cte.THETA_MOVE_UNCERT, cte.SPEED_MOVE_UNCERT, cte.SPEED_MOVE_UNCERT])  # displacement noise covariance  
+        self.Q = np.diag([cte.X_MOVE_UNCERT, cte.Y_MOVE_UNCERT, cte.THETA_MOVE_UNCERT, cte.SPEED_MOVE_UNCERT_L, cte.SPEED_MOVE_UNCERT_R])  # displacement noise covariance  
         self.R = None  # measurement noise covariance
         #TODO : à ajuster avec des valeurs à tester
-        self.R_with_camera = np.diag([cte.X_MEAS_UNCERT, cte.Y_MEAS_UNCERT, cte.THETA_MEAS_UNCERT, cte.SPEED_MES_UNCERT, cte.SPEED_MES_UNCERT])  # If camera feed is available  
-        self.R_no_camera = np.diag([np.inf, np.inf, np.inf, cte.SPEED_MES_UNCERT, cte.SPEED_MES_UNCERT])  # If no camera feed we set high uncertainty so the measurment is ignored
-
+        self.R_with_camera = np.diag([cte.X_MEAS_UNCERT, cte.Y_MEAS_UNCERT, cte.THETA_MEAS_UNCERT, cte.SPEED_MES_UNCERT_L, cte.SPEED_MES_UNCERT_R])  # If camera feed is available  
+        self.R_no_camera = np.diag([np.inf, np.inf, np.inf, cte.SPEED_MES_UNCERT_L, cte.SPEED_MES_UNCERT_R])  # If no camera feed we set high uncertainty so the measurment is ignored
 
     def update(self, measured_pos, Ts, ls, rs):
         """
@@ -36,11 +35,13 @@ class Filter:
         
         # Convert function inputs to numpy arrays
         state_meas = np.array(measured_pos + [ls, rs])  # measurement vector (x, y, theta, left_speed, right_speed)
+        theta = self.state[2]
 
-        #TODO : bien définir le sens de rotation du robot (pour le moment c'est CW positif) -> POUR A ET B
-        self.A = np.array([[1, 0, 0, -np.cos(self.state[2])/2*Ts, np.cos(self.state[2])/2*Ts],
-                           [0, 1, 0, np.sin(self.state[2])/2*Ts, np.sin(self.state[2])/2*Ts],
-                           [0, 0, 1, 1/cte.WHEELBASE*Ts, - 1/cte.WHEELBASE*Ts],
+        # State transition matrix
+        # Angle theta is in radians and CCW positive
+        self.A = np.array([[1, 0, -np.sin(theta)*Ts*(ls-rs)/2, Ts/2*np.cos(theta), Ts/2*np.cos(theta)],
+                           [0, 1, np.cos(theta)*Ts*(ls-rs)/2, Ts/2*np.sin(theta), Ts/2*np.sin(theta)],
+                           [0, 0, 1, -Ts/cte.WHEELBASE, Ts/cte.WHEELBASE],
                            [0, 0, 0, 1, 0],
                            [0, 0, 0, 0, 1]])
     
