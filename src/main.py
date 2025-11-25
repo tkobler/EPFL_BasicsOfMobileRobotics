@@ -18,16 +18,20 @@ async def main():
         carte = Map()
         carte.init_map(camera_id=0)
         thymio, goal, obstacles = [],[],[] # positions of thymios, goals and obstacles
+        print("Viser la map avec la caméra, les 4 markers dans les coins doivent être visibles.")
+        print("Appuyez sur 's' pour initialiser la map")
+        print("Puis quand la map apparait à l'écran, appuyer à nouveau sur 's' pour valider")
         while True:
             key = carte.afficher_video()
             if key == ord('s'):
-                print("Touche 's' détectée !")
                 break
         obstacles = carte.get_obstacles_positions() # list of obstacles ((x,y), (x,y))
+        print("Map initialisée avec succès.")
+        print("Placez le Thymio sur la map à la position de départ.")
+        print("Appuyez sur 'p' pour initialiser la position du Thymio et commencer la navigation")
         while True:
             key = carte.afficher_video()
             if key == ord('p'):
-                print("Touche 'p' détectée !")
                 break
         thymio = carte.get_thymio_position() # pos x,y and angle in radians
         goal = carte.get_goal_position() # pos x,y 
