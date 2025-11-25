@@ -36,6 +36,7 @@ detection_thread = None
 running = False
 
 
+
 class Map:
     """
     Classe pour accéder aux informations de la carte (positions du Thymio, obstacles et objectif).
