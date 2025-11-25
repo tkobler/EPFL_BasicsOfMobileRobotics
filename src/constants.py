@@ -9,9 +9,15 @@ WHEELBASE = 122.7  # wheelbase in mm (same as in Navigation.py)
 CALIB_LEFT_WHEEL = 1.05
 CALIB_RIGHT_WHEEL = 1.0
 MAIN_MOTOR_SPEED = 200  # main motor speed command in Thymio units
-
 KIDNAP_THRESHOLD = 100  # threshold in mm for kidnapping detection
 
+# ======================================
+# Vision environment config
+# ======================================
+# Constantes de dimensions (en mm)
+ENV_LARGEUR = 1189  # Largeur de l'environnement 
+ENV_LONGUEUR = 841  # Longueur de l'environnement 
+LARGEUR_MARQUEUR = 70  # Largeur d'un marqueur ArUco
 
 # ======================================
 # Uncertainties for the Kalman Filter

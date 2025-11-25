@@ -15,12 +15,22 @@ async def main():
         # ======================================
         # Initialize modules
         # ======================================
-        map = Map()
-        map.init_map()
+        carte = Map()
+        carte.init_map(camera_id=0)
         thymio, goal, obstacles = [],[],[] # positions of thymios, goals and obstacles
-        thymio = map.get_thymio_position() # pos x,y and angle in radians
-        goal = map.get_goal_position() # pos x,y 
-        obstacles = map.get_obstacles_positions() # list of obstacles ((x,y), (x,y))
+        while True:
+            key = carte.afficher_video()
+            if key == ord('s'):
+                print("Touche 's' détectée !")
+                break
+        obstacles = carte.get_obstacles_positions() # list of obstacles ((x,y), (x,y))
+        while True:
+            key = carte.afficher_video()
+            if key == ord('p'):
+                print("Touche 'p' détectée !")
+                break
+        thymio = carte.get_thymio_position() # pos x,y and angle in radians
+        goal = carte.get_goal_position() # pos x,y 
 
         filter = Filter(thymio)
     
@@ -37,14 +47,17 @@ async def main():
         # ======================================
         while goal_not_reached:
             # sensing
-            pos_measure = map.get_thymio_position() # pos x,y and angle in radians
+            carte.afficher_video()
+            pos_measure = carte.get_thymio_position() # pos x,y and angle in radians
+            print(pos_measure)
+            await client.sleep(0.05)
             left_speed_mes, right_speed_mes = await motion_control.get_speed() # wheel speeds in mm/s
             delta_t = motion_control.get_time() # time elapsed since last measure in s
 
             # pose estimation
-            pos_estim = filter.update(pos_measure, delta_t, left_speed_mes, right_speed_mes)
+           # pos_estim = filter.update(pos_measure, delta_t, left_speed_mes, right_speed_mes)
 
-            # is goal reached ?
+            """ is goal reached ?
             if global_nav.is_goal_reached(pos_estim, goal):
                 goal_not_reached = False
                 await motion_control.stop()
@@ -62,7 +75,7 @@ async def main():
                 await motion_control.avoid_local_obstacle(thymio)
             else: 
                 # Follow the global path
-                await motion_control.follow_path(thymio)
+                await motion_control.follow_path(thymio)"""
 
     except Exception as e:
         print(f"An error occurred: {e}")
