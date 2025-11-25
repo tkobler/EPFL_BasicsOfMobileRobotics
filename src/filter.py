@@ -36,11 +36,13 @@ class Filter:
         
         # Convert function inputs to numpy arrays
         state_meas = np.array(measured_pos + [ls, rs])  # measurement vector (x, y, theta, left_speed, right_speed)
+        theta = self.state[2]
 
-        #TODO : bien définir le sens de rotation du robot (pour le moment c'est CW positif) -> POUR A ET B
-        self.A = np.array([[1, 0, 0, -np.cos(self.state[2])/2*Ts, np.cos(self.state[2])/2*Ts],
-                           [0, 1, 0, np.sin(self.state[2])/2*Ts, np.sin(self.state[2])/2*Ts],
-                           [0, 0, 1, 1/cte.WHEELBASE*Ts, - 1/cte.WHEELBASE*Ts],
+        # State transition matrix
+        # Angle theta is in radians and CCW positive
+        self.A = np.array([[1, 0, -np.sin(theta)*Ts*(ls-rs)/2, Ts/2*np.cos(theta), Ts/2*np.cos(theta)],
+                           [0, 1, np.cos(theta)*Ts*(ls-rs)/2, Ts/2*np.sin(theta), Ts/2*np.sin(theta)],
+                           [0, 0, 1, -Ts/cte.WHEELBASE, Ts/cte.WHEELBASE],
                            [0, 0, 0, 1, 0],
                            [0, 0, 0, 0, 1]])
     
