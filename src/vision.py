@@ -68,7 +68,6 @@ class Map:
         detector = cv2.aruco.ArucoDetector(aruco_dict, aruco_params)
 
         print("=== DETECTION ARUCO ACTIVEE ===")
-        print()
 
         # Démarrer le thread de détection
         running = True
