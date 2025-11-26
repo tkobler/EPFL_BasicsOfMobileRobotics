@@ -11,6 +11,8 @@ class GlobalNav:
     def __init__(self, arena_width=1189, arena_height=841):
         self.width = arena_width
         self.height = arena_height
+        self.nodes = []
+        self.edges = {}
 
     def dist(self, a, b):
         return sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
@@ -155,20 +157,20 @@ class GlobalNav:
         start_pt = [thymio[0], thymio[1]]
         goal_pt = [goal[0], goal[1]]
 
-        nodes, edges = self.build_visibility_graph(start_pt, goal_pt, obstacles)
+        self.nodes, self.edges = self.build_visibility_graph(start_pt, goal_pt, obstacles)
 
-        path_idx = self.dijkstra(edges, start_idx=0, goal_idx=1) #goal idx = 1 bc of build_visibility
+        path_idx = self.dijkstra(self.edges, start_idx=0, goal_idx=1) #goal idx = 1 bc of build_visibility
         if path_idx is None:
             print("GlobalNav (visibility): No path found!")
             return []
 
-        path_world = [nodes[i] for i in path_idx] #convert node indices to (x,y) coordinates
+        path_world = [self.nodes[i] for i in path_idx] #convert node indices to (x,y) coordinates
         return path_world
 
     def is_goal_reached(self, current_pos, goal_pos): #tol = 70mm bc R of the Thymio is ~55, so a bit more 
         return self.dist(current_pos, goal_pos) < cst.GOAL_TOL
     
-    def plot_map(self, obstacles, nodes, edges, path, start, goal): #generated with chatGPT
+    def plot_map(self, obstacles, path, start, goal): #generated with chatGPT
 
         fig, ax = plt.subplots(figsize=(9, 7))
         ax.set_title("Visibility Graph + Shortest Path", fontsize=16)
@@ -183,14 +185,14 @@ class GlobalNav:
             ax.fill(xs, ys, color="black", alpha=0.4)
 
         #plot visibility edges
-        for u in edges:
-            for v, _ in edges[u]:
-                x1, y1 = nodes[u]
-                x2, y2 = nodes[v]
+        for u in self.edges:
+            for v, _ in self.edges[u]:
+                x1, y1 = self.nodes[u]
+                x2, y2 = self.nodes[v]
                 ax.plot([x1, x2], [y1, y2], color="gray", linewidth=1, alpha=0.35)
 
         #plot nodes
-        for (x, y) in nodes:
+        for (x, y) in self.nodes:
             ax.plot(x, y, "bo", markersize=5)
 
         #plot optimal path

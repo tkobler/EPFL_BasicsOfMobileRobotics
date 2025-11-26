@@ -40,6 +40,7 @@ async def main():
     
         global_nav = GlobalNav()
         path = global_nav.find_optimal_path(thymio, goal, obstacles) # list of pos x,y en mm
+        global_nav.plot_map(obstacles, path, [thymio[0], thymio[1]], goal)
         print("Chemin calculé avec succès.")
         print(path)
 
