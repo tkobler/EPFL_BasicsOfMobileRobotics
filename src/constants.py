@@ -32,3 +32,11 @@ Y_MEAS_UNCERT = 0.25  #[mm²] uncertainty in y direction from camera (measuremen
 THETA_MEAS_UNCERT = 0.0007  #[rad²] uncertainty in theta from camera (measurement noise)
 SPEED_MES_UNCERT_L = 3.46  #[ (mm/s)² ] uncertainty in left wheel speed measurement
 SPEED_MES_UNCERT_R = 5.05  #[ (mm/s)² ] uncertainty in right wheel speed measurement
+
+# ======================================
+# Global Nav
+# ======================================
+# Constantes de dimensions (en mm)
+INFLATION_R = 70
+GOAL_TOL = 100
+EPSILON = 1e-9
