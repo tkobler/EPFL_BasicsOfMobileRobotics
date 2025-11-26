@@ -457,6 +457,9 @@ def detecter_thymio(corners, ids, frame):
     """
     global position_thymio_transformee
 
+    # Réinitialiser la position du Thymio (sera rempli seulement si ID 4 est détecté)
+    position_thymio_transformee = {}
+
     for corner, marker_id in zip(corners, ids):
         mid = marker_id[0]
 
