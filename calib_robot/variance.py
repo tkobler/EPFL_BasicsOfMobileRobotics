@@ -14,7 +14,7 @@ from tdmclient import ClientAsync
 # ======================================
 # Paramètres de calibration
 # ======================================
-SPEED_TO_MMS = 0.032769  # mm/s par unité de vitesse Thymio
+SPEED_TO_MMS = 0.32769  # mm/s par unité de vitesse Thymio
 WHEELBASE = 122.7  # empattement en mm
 CALIB_LEFT_WHEEL = 1.05
 CALIB_RIGHT_WHEEL = 1.0

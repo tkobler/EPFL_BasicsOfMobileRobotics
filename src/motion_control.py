@@ -22,6 +22,9 @@ DANGER_THRESHOLD = 3500  # collision imminent
 REP_GAIN = 1.2 # Strength of repulsive forces
 ATT_GAIN = 1.0 # Strength of attractive force during avoidance
 
+# How long to keep an obstacle after it's not visible anymore (seconds)
+REP_DECAY_TIME = 3.0
+
 # Follow or avoid 
 
 TARGET_REACHED_DIST_MM = 30.0 # Target is reached radius (stay on trajectory), switch to next
@@ -53,11 +56,22 @@ class MotionControl:
         self.speed_right_mes = 0
         self.time = time.time()
 
+        # Time of the last repulsive forces (imaginary obstacles)
+        self.last_rep_vec = (0.0, 0.0)
+        self.last_rep_time = 0.0
+
 
     def is_kidnapped(self, actual_pos, prev_pos):
         # Check if there is a kidnapping event
-        a = cte.KIDNAP_THRESHOLD
-        return False 
+        x, y, _ = actual_pos
+        x_prev, y_prev, _ = prev_pos
+
+        dx = x - x_prev
+        dy = y - y_prev
+
+        dist = math.hypot(dx, dy)
+        
+        return dist > cte.KIDNAP_THRESHOLD
     
     ### Global navigation ================
     async def follow_path(self, current_pos):
@@ -149,6 +163,8 @@ class MotionControl:
         await self.node.wait_for_variables({"prox.horizontal"})
         prox = self.node["prox.horizontal"]
         front_vals = prox[0:5]
+        
+        '''
 
         # STEP 2: Compute the repulsive force from detected obstacles
         Fx_rep, Fy_rep = 0.0, 0.0
@@ -164,6 +180,39 @@ class MotionControl:
             # The direction of the vector should be opposite to the sensor axis
             Fx_rep += -mag * math.cos(ang)
             Fy_rep += -mag * math.sin(ang)
+
+        '''
+                # STEP 2: Compute the repulsive force from detected obstacles
+        # We keep a "ghost" repulsive force for a short time after losing the obstacle.
+        Fx_rep_raw, Fy_rep_raw = 0.0, 0.0
+        for val, ang in zip(front_vals, SENSOR_ANGLES):
+            # ignore this reading if below the obstacle threshold 
+            if val <= OBST_THRESHOLD:
+                continue
+
+            # magnitude proportional to how much the threshold is exceeded 
+            mag = REP_GAIN * (val - OBST_THRESHOLD) / max(1.0, (PROX_MAX - OBST_THRESHOLD))
+
+            # direction opposite to sensor axis
+            Fx_rep_raw += -mag * math.cos(ang)
+            Fy_rep_raw += -mag * math.sin(ang)
+
+        # Now apply memory / decay
+        norm_raw = math.hypot(Fx_rep_raw, Fy_rep_raw)
+        if norm_raw > 1e-6:
+            # We currently see an obstacle -> update memory
+            self.last_rep_vec = (Fx_rep_raw, Fy_rep_raw)
+            self.last_rep_time = time.time()
+            Fx_rep, Fy_rep = Fx_rep_raw, Fy_rep_raw
+        else:
+            # No obstacle currently seen -> maybe use decaying "ghost" repulsion
+            dt = time.time() - self.last_rep_time
+            if dt < REP_DECAY_TIME:
+                decay = max(0.0, 1.0 - dt / REP_DECAY_TIME)
+                Fx_rep = self.last_rep_vec[0] * decay
+                Fy_rep = self.last_rep_vec[1] * decay
+            else:
+                Fx_rep, Fy_rep = 0.0, 0.0
 
         # Emergency situation : collision is imminent then spin on the spot until facing away 
         if max(front_vals) > DANGER_THRESHOLD:
@@ -191,9 +240,25 @@ class MotionControl:
             Fx_att = ATT_GAIN * math.cos(ang_goal_robot)
             Fy_att = ATT_GAIN * math.sin(ang_goal_robot)
         
+        '''
+
         # Compute the resulting force 
         Fx = Fx_att + Fx_rep
         Fy = Fy_att + Fy_rep
+
+         '''
+
+        # Compute the resulting force 
+        # While the repulsive "ghost" is still active, reduce the attractive pull to the goal.
+        dt_since_rep = time.time() - self.last_rep_time
+        if dt_since_rep < REP_DECAY_TIME:
+            att_scale = 0.3  # weaker attraction when we recently saw an obstacle
+        else:
+            att_scale = 1.0
+
+        Fx = att_scale * Fx_att + Fx_rep
+        Fy = att_scale * Fy_att + Fy_rep
+
 
         if Fx == 0.0 and Fy == 0.0:
             # nothing to do
