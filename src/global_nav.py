@@ -81,7 +81,10 @@ class GlobalNav:
             vy = y - cy
             L = sqrt(vx * vx + vy * vy) + 1e-6 #avoid div by 0, when center is on a point(like a 3 point line)
             scale = (L + self.inflation) / L #scale factor to push vertex outward by inflation radius
-            inflated.append((cx + vx * scale, cy + vy * scale)) #apply scaling to get inflated vertex
+            new_x = int(cx + vx * scale)
+            new_y = int(cy + vy * scale)
+            inflated.append([new_x, new_y]) #apply scaling to get inflated vertex
+        
         return inflated
 
     def build_visibility_graph(self, start, goal, obstacles): #build the visibility graph on inflated obstacles
@@ -152,8 +155,8 @@ class GlobalNav:
         Returns:
             path_world: list of (x, y) waypoints in mm.
         """
-        start_pt = (thymio[0], thymio[1])
-        goal_pt = (goal[0], goal[1])
+        start_pt = [thymio[0], thymio[1]]
+        goal_pt = [goal[0], goal[1]]
 
         nodes, edges = self.build_visibility_graph(start_pt, goal_pt, obstacles)
 
