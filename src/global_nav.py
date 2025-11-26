@@ -1,23 +1,233 @@
-#import necessary libraries
-#import numpy as np
+import numpy as np
+import heapq
+from math import sqrt
+
+#obstacle minimum 3 points no lines
 
 class GlobalNav:
-    def __init__(self):
-        pass
+
+    def __init__(self, cell_size=20, arena_width=1189, arena_height=841, inflation_radius=40):
+        self.cell = cell_size
+        self.width = arena_width
+        self.height = arena_height
+        self.inflation = inflation_radius
+
+    def dist(self, a, b):
+        return sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
+
+    def ccw(self, A, B, C): #are the points in counter-clockwise order? return True if > 0, False for cw < 0 and colinear = 0
+        return (C[1] - A[1]) * (B[0] - A[0]) - (B[1] - A[1]) * (C[0] - A[0]) > 0 #https://www.geeksforgeeks.org/dsa/orientation-3-ordered-points/
+
+    def segments_intersect(self, p1, p2, p3, p4): #return True if they cross
+        return (self.ccw(p1, p3, p4) != self.ccw(p2, p3, p4)) and (self.ccw(p1, p2, p3) != self.ccw(p1, p2, p4)) #https://www.geeksforgeeks.org/dsa/check-if-two-given-line-segments-intersect/
+        #Two segments AB and CD intersect if and only if: C and D are on different sides of AB and A and B are on different sides of CD
+
+    def segment_hits_polygon(self, A, B, poly): #true if segment AB intersects any edge of polygon poly
+        n = len(poly)
+        for i in range(n):
+            C = poly[i]
+            D = poly[(i + 1) % n] #pair of edges, loops around
+
+            #if AB shares an endpoint with the edge CD -> allowed
+            if A == C or A == D or B == C or B == D:
+                continue #skip next if
+
+            #check edge intersection
+            if self.segments_intersect(A, B, C, D):
+                return True  
+        return False
+
+    def point_in_polygon(self, point, poly, eps=1e-9):
+        x, y = point
+        inside = False
+        n = len(poly)
+
+        for i in range(n):
+            x1, y1 = poly[i]
+            x2, y2 = poly[(i + 1) % n]
+
+            #cross product == 0 -> collinear
+            cross = (x - x1) * (y2 - y1) - (y - y1) * (x2 - x1)
+            if abs(cross) < eps: #accept tiny tolerance because never 0
+                # dot product <= 0 -> point is between endpoints
+                dot = (x - x1) * (x - x2) + (y - y1) * (y - y2)
+                if dot <= eps:
+                    return False  #on edge = considered outside
+
+            #check if the horizontal ray crosses edge (x1,y1)-(x2,y2)
+            if (y1 > y) != (y2 > y): #y is between y1 and y2; compute intersection x
+                x_intersect = (x2 - x1) * (y - y1) / (y2 - y1) + x1
+                if x < x_intersect:
+                    inside = not inside
+        return inside #True = inside, False = outside
+
+    def segment_visible(self, A, B, polygon_list):
+        mid = ((A[0] + B[0]) / 2.0, (A[1] + B[1]) / 2.0)
+
+        for poly in polygon_list:
+            if self.segment_hits_polygon(A, B, poly): #AB must not intersect any polygon edge
+                return False
+            if self.point_in_polygon(mid, poly): #midpoint inside polygon (for segments between the polygon's points)
+                return False
+        return True
+
+    def inflate_polygon(self, poly): #inflate a polygon by moving each corner away from its centroid
+        cx = np.mean([p[0] for p in poly]) #finfing centroid
+        cy = np.mean([p[1] for p in poly])
+
+        inflated = []
+        for (x, y) in poly:
+            vx = x - cx #dist from centroid to corner
+            vy = y - cy
+            L = sqrt(vx * vx + vy * vy) + 1e-6 #avoid div by 0, when center is on a point(like a 3 point line)
+            scale = (L + self.inflation) / L #scale factor to push vertex outward by inflation radius
+            inflated.append((cx + vx * scale, cy + vy * scale)) #apply scaling to get inflated vertex
+        return inflated
+
+    def build_visibility_graph(self, start, goal, obstacles): #build the visibility graph on inflated obstacles
+        """
+        Inputs:
+            start, goal: (x, y) points in mm
+            obstacles: list of polygons [[(x,y),...], [...]]
+        Returns:
+            nodes: list of all points (start, goal, obstacle vertices)
+            edges: dict {idx: [(neighbor_idx, distance), ...]}
+        """
+        inflated = [self.inflate_polygon(poly) for poly in obstacles] #inflate obstacles
+
+        nodes = [start, goal] #idx 0 = start, 1 = goal
+        for poly in inflated: #collect all nodes
+            nodes.extend(poly)
+
+        #build edges between all visible pairs
+        N = len(nodes)
+        edges = {i: [] for i in range(N)}
+
+        for i in range(N):
+            for j in range(i + 1, N):
+                A = nodes[i]
+                B = nodes[j]
+
+                if self.segment_visible(A, B, inflated):
+                    d = self.dist(A, B)
+                    edges[i].append((j, d))
+                    edges[j].append((i, d)) #adds to list with [(point, distance),...]
+
+        return nodes, edges
+
+    def dijkstra(self, edges, start_idx, goal_idx): #help from Exercise 5 part 1
+        pq = [(0.0, start_idx)] #(cost_so_far, node_index), priority queue implemented with heapq
+        cost = {start_idx: 0.0} #dictionary: node -> best known cost
+        parent = {start_idx: None} #keeps track of how we reached each node
+
+        while pq:
+            c, u = heapq.heappop(pq) #pops the element with smallest cost
+            if u == goal_idx:
+                break
+
+            for v, w in edges[u]: #explore neighbors of u
+                newc = c + w #total cost to reach v via u
+                if v not in cost or newc < cost[v]: #update if first time visiting v or found better path
+                    cost[v] = newc
+                    parent[v] = u
+                    heapq.heappush(pq, (newc, v))
+
+        if goal_idx not in parent: #if goal has no parent, no path exists
+            return None  # no path
+
+        #reconstruct path, go backwards using the parent dictionary
+        path = []
+        cur = goal_idx
+        while cur is not None:
+            path.append(cur)
+            cur = parent[cur]
+        return path[::-1] #returns list of node indices for the shortest path.
 
     def find_optimal_path(self, thymio, goal, obstacles):
-        # find the optimal path given the global map data
-        return
-    
-    def is_goal_reached(self, current_pos, goal_pos):
-        # Check if the goal is reached
-        return
-    
+        """
+        Inputs:
+            thymio: (x, y, theta) in mm, rad
+            goal: (x, y) in mm
+            obstacles: list of polygons from vision
+        Returns:
+            path_world: list of (x, y) waypoints in mm.
+        """
+        start_pt = (thymio[0], thymio[1])
+        goal_pt = (goal[0], goal[1])
 
-    #getters and setters can be added as needed
+        nodes, edges = self.build_visibility_graph(start_pt, goal_pt, obstacles)
+
+        path_idx = self.dijkstra(edges, start_idx=0, goal_idx=1) #goal idx = 1 bc of build_visibility
+        if path_idx is None:
+            print("GlobalNav (visibility): No path found!")
+            return []
+
+        path_world = [nodes[i] for i in path_idx] #convert node indices to (x,y) coordinates
+        return path_world
+
+    def is_goal_reached(self, current_pos, goal_pos, tol=40): #tol = distance tolerance in mm
+        dx = current_pos[0] - goal_pos[0]
+        dy = current_pos[1] - goal_pos[1]
+        d = sqrt(dx * dx + dy * dy)
+        return d < tol
 
 
-# test code
-# you can run python global_nav.py to test a specific function without compiling the entire project
-if __name__ == "__main__": 
-    global_nav_instance = GlobalNav() #useful for testing function from this file directly
+if __name__ == "__main__": #generated with chat gpt
+    import matplotlib.pyplot as plt
+
+    nav = GlobalNav()
+
+    obstacles = [
+        [(200, 100), (200, 200), (600, 200), (600, 100)], #[(140, 260), (200, 360), (300, 180)],
+        [(400, 650), (400, 450), (700, 400), (890, 500), (890, 600), (700, 700)]
+    ]
+
+    start = (80, 100)
+    goal  = (920, 400)
+
+    nodes, edges = nav.build_visibility_graph(start, goal, obstacles)
+    path_idx = nav.dijkstra(edges, 0, 1)
+    path = [nodes[i] for i in path_idx]
+
+    inflated = [nav.inflate_polygon(poly) for poly in obstacles]
+
+    fig, ax = plt.subplots(figsize=(9, 7))
+
+    ax.set_title("Visibility Graph + Shortest Path", fontsize=16)
+    ax.set_xlabel("x (mm)")
+    ax.set_ylabel("y (mm)")
+    ax.grid(True)
+
+    for poly in obstacles:
+        xs = [p[0] for p in poly] + [poly[0][0]]
+        ys = [p[1] for p in poly] + [poly[0][1]]
+        ax.fill(xs, ys, color="lightgray", alpha=0.4)
+
+    for poly in inflated:
+        xs = [p[0] for p in poly] + [poly[0][0]]
+        ys = [p[1] for p in poly] + [poly[0][1]]
+        ax.plot(xs, ys, "k--", linewidth=1.2, alpha=0.4)
+
+    for u in edges:
+        for v, _ in edges[u]:
+            x1, y1 = nodes[u]
+            x2, y2 = nodes[v]
+            ax.plot([x1, x2], [y1, y2], color="grey", linewidth=1, alpha=0.35)
+
+    for (x, y) in nodes:
+        ax.plot(x, y, "bo", markersize=5)
+
+    px = [p[0] for p in path]
+    py = [p[1] for p in path]
+    ax.plot(px, py, "r-", linewidth=2, label="Shortest Path")
+
+    #plot start/goal
+    ax.plot(start[0], start[1], "go", markersize=10, label="Start")
+    ax.plot(goal[0], goal[1], "ro", markersize=10, label="Goal")
+
+
+    ax.set_xlim(0, nav.width)
+    ax.set_ylim(nav.height, 0) #inverts y-axis (0,0 = bottom-left)
+    ax.invert_yaxis()
+    ax.legend()
+    plt.show()

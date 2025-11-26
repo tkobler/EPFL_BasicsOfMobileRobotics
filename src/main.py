@@ -63,10 +63,10 @@ async def main():
             carte.afficher_video()
 
             # # is goal reached ?
-            # if global_nav.is_goal_reached(pos_estim, goal):
-            #     goal_not_reached = False
-            #     await motion_control.stop()
-            #     break
+            if global_nav.is_goal_reached(pos_estim, goal):
+                goal_not_reached = False
+                await motion_control.stop()
+                break
 
             # # is there a kidnapping?
             # if motion_control.is_kidnapped(pos_estim, thymio):
