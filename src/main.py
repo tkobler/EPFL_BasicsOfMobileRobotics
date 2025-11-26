@@ -40,6 +40,8 @@ async def main():
     
         global_nav = GlobalNav()
         path = global_nav.find_optimal_path(thymio, goal, obstacles) # list of pos x,y en mm
+        print("Chemin calculé avec succès.")
+        print(path)
 
         motion_control = MotionControl(node, client)
         motion_control.set_path(path)
@@ -62,9 +64,10 @@ async def main():
             carte.dessin_point(pos_estim[0],pos_estim[1], pos_estim[2])
             carte.afficher_video()
 
-            # # is goal reached ?
+            # is goal reached ?
             if global_nav.is_goal_reached(pos_estim, goal):
                 goal_not_reached = False
+                print("Goal reached!")
                 await motion_control.stop()
                 break
 

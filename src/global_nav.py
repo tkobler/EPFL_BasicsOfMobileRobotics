@@ -165,7 +165,7 @@ class GlobalNav:
         path_world = [nodes[i] for i in path_idx] #convert node indices to (x,y) coordinates
         return path_world
 
-    def is_goal_reached(self, current_pos, goal_pos, tol=40): #tol = distance tolerance in mm
+    def is_goal_reached(self, current_pos, goal_pos, tol=100): #tol = distance tolerance in mm
         dx = current_pos[0] - goal_pos[0]
         dy = current_pos[1] - goal_pos[1]
         d = sqrt(dx * dx + dy * dy)
