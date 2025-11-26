@@ -27,8 +27,10 @@ class Filter:
         return estim_pos: new a posteriori state estimation
         """
         # Check_for_camera and change R accordingly
-        if measured_pos is None:
+        if measured_pos == []:
+            print("No camera measurement available, relying on odometry only.")
             self.R = self.R_no_camera
+            measured_pos = [-1, -1, -1]  # Dummy values since we won't use them
         else:
             self.R = self.R_with_camera
         
