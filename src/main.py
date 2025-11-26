@@ -3,58 +3,84 @@ from filter import Filter
 from global_nav import GlobalNav
 from motion_control import MotionControl
 from vision import Map
+import constants as cte
+
 
 async def main():
-    # remark: see doc to know how to use this method: https://github.com/epfl-mobots/tdm-python/blob/main/doc/lowlevel.md
     try: 
+        client = ClientAsync()
         node = await client.wait_for_node()
         await node.lock()
 
-        # Initialize instances of different modules
-        map = Map()
-        filter = Filter()
-        global_nav = GlobalNav()
-        motion_control = MotionControl()
+        # ======================================
+        # Initialize modules
+        # ======================================
+        carte = Map()
+        carte.init_map(camera_id=0)
         thymio, goal, obstacles = [],[],[] # positions of thymios, goals and obstacles
-        goal_not_reached = True
+        print("Viser la map avec la caméra, les 4 markers dans les coins doivent être visibles.")
+        print("Appuyez sur 's' pour initialiser la map")
+        print("Puis quand la map apparait à l'écran, appuyer à nouveau sur 's' pour valider")
+        while True:
+            key = carte.afficher_video()
+            if key == ord('s'):
+                break
+        obstacles = carte.get_obstacles_positions() # list of obstacles ((x,y), (x,y))
+        print("Map initialisée avec succès.")
+        print("Placez le Thymio sur la map à la position de départ.")
+        print("Appuyez sur 'p' pour initialiser la position du Thymio et commencer la navigation")
+        while True:
+            key = carte.afficher_video()
+            if key == ord('p'):
+                break
+        thymio = carte.get_thymio_position() # pos x,y and angle in radians
+        goal = carte.get_goal_position() # pos x,y 
+
+        filter = Filter(thymio)
     
-        # Init the map, filter, global and local navigation modules
-        map.init_map()
-        thymio = map.get_thymio_position() # pos x,y and angle in radians
-        goal = map.get_goal_position() # pos x,y 
-        obstacles = map.get_obstacles_positions() # list of obstacles ((x,y), (x,y))
+        global_nav = GlobalNav()
         path = global_nav.find_optimal_path(thymio, goal, obstacles) # list of pos x,y en mm
+
+        motion_control = MotionControl(node, client)
         motion_control.set_path(path)
 
+        goal_not_reached = True
+
+        # ======================================
         # Main loop
+        # ======================================
         while goal_not_reached:
             # sensing
-            pos_measure = map.get_thymio_position() # pos x,y and angle in radians
-            left_speed, right_speed = motion_control.get_speed() # wheel speeds in mm/s
+            pos_measure = carte.get_thymio_position() # pos x,y and angle in radians
+            left_speed_mes, right_speed_mes = await motion_control.get_speed() # wheel speeds in mm/s
+            delta_t = motion_control.get_time() # time elapsed since last measure in s
 
-            # pose estimation
-            pos_estim = filter.update(pos_measure, left_speed, right_speed)
+            # position estimation
+            pos_estim = filter.update(pos_measure, delta_t, left_speed_mes, right_speed_mes)
 
-            # is goal reached ?
+            # position display
+            carte.dessin_point(pos_estim[0],pos_estim[1], pos_estim[2])
+            carte.afficher_video()
+
+            # # is goal reached ?
             if global_nav.is_goal_reached(pos_estim, goal):
                 goal_not_reached = False
-                motion_control.stop()
+                await motion_control.stop()
                 break
 
-            # is there a kidnapping?
-            if motion_control.is_kidnapped(pos_estim, thymio):
-                 path = global_nav.find_optimal_path(pos_estim, goal, obstacles)
-                 motion_control.set_path(path)
+            # # is there a kidnapping?
+            # if motion_control.is_kidnapped(pos_estim, thymio):
+            #      path = global_nav.find_optimal_path(pos_estim, goal, obstacles)
+            #      motion_control.set_path(path)
             
-            thymio = pos_estim
-            # movment 
-            if motion_control.see_local_obstacle(): 
-                # Avoid local obstacle
-                motion_control.avoid_local_obstacle(thymio)
-            else: 
-                # Follow the global path
-                motion_control.follow_path(thymio)
-
+            # thymio = pos_estim
+            # # movment 
+            # if (await motion_control.see_local_obstacle()): 
+            #     # Avoid local obstacle
+            #     await motion_control.avoid_local_obstacle(thymio)
+            # else: 
+            #     # Follow the global path
+            #     await motion_control.follow_path(thymio)
 
     except Exception as e:
         print(f"An error occurred: {e}")
