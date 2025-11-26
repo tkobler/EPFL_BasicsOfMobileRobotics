@@ -55,7 +55,8 @@ class MotionControl:
 
 
     def is_kidnapped(self, actual_pos, prev_pos):
-        # Check if there is a kidnapping event
+        # Check if there is a kidnapping 
+        
         a = cte.KIDNAP_THRESHOLD
         return False 
     

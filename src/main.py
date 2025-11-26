@@ -56,9 +56,11 @@ async def main():
             pos_measure = carte.get_thymio_position() # pos x,y and angle in radians
             left_speed_mes, right_speed_mes = await motion_control.get_speed() # wheel speeds in mm/s
             delta_t = motion_control.get_time() # time elapsed since last measure in s
+            print(f"Measured pos: {pos_measure}, Left speed: {left_speed_mes}, Right speed: {right_speed_mes}, Delta t: {delta_t}")
 
             # position estimation
             pos_estim = filter.update(pos_measure, delta_t, left_speed_mes, right_speed_mes)
+            print(f"Estimated pos: {pos_estim}")
 
             # position display
             carte.dessin_point(pos_estim[0],pos_estim[1], pos_estim[2])
@@ -71,11 +73,11 @@ async def main():
                 await motion_control.stop()
                 break
 
-            # is there a kidnapping?
-            if motion_control.is_kidnapped(pos_estim, thymio):
-                 print("Kidnapping detected! Stopping the robot.")
-                 path = global_nav.find_optimal_path(pos_estim, goal, obstacles)
-                 motion_control.set_path(path)
+            # # is there a kidnapping?
+            # if motion_control.is_kidnapped(pos_estim, thymio):
+            #      print("Kidnapping detected! Stopping the robot.")
+            #      path = global_nav.find_optimal_path(pos_estim, goal, obstacles)
+            #      motion_control.set_path(path)
             
             thymio = pos_estim
             # movment 
