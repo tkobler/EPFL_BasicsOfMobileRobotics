@@ -74,11 +74,19 @@ async def main():
                 await motion_control.stop()
                 break
 
-            # # is there a kidnapping?
-            # if motion_control.is_kidnapped(pos_estim, thymio):
-            #      print("Kidnapping detected! Stopping the robot.")
-            #      path = global_nav.find_optimal_path(pos_estim, goal, obstacles)
-            #      motion_control.set_path(path)
+            # is there a kidnapping?
+            if motion_control.is_kidnapped(pos_estim, thymio):
+                 print("Kidnapping detected! Stopping the robot.")
+                 await motion_control.stop()
+                 print("Please place the robot back on the map and press 'r' to resume.")
+                 while True:
+                     key = carte.afficher_video()
+                     if key == ord('r'):
+                         break
+                 # Reinitialize position
+                 pos_estim = carte.get_thymio_position() # pos x,y and angle in radians
+                 path = global_nav.find_optimal_path(pos_estim, goal, obstacles)
+                 motion_control.set_path(path)
             
             thymio = pos_estim
             # movment 
