@@ -1,16 +1,14 @@
 import numpy as np
 import heapq
 from math import sqrt
-
+import constants as cst
 #obstacle minimum 3 points no lines
 
 class GlobalNav:
 
-    def __init__(self, cell_size=20, arena_width=1189, arena_height=841, inflation_radius=40):
-        self.cell = cell_size
+    def __init__(self, arena_width=1189, arena_height=841):
         self.width = arena_width
         self.height = arena_height
-        self.inflation = inflation_radius
 
     def dist(self, a, b):
         return sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
@@ -20,7 +18,7 @@ class GlobalNav:
 
     def segments_intersect(self, p1, p2, p3, p4): #return True if they cross
         return (self.ccw(p1, p3, p4) != self.ccw(p2, p3, p4)) and (self.ccw(p1, p2, p3) != self.ccw(p1, p2, p4)) #https://www.geeksforgeeks.org/dsa/check-if-two-given-line-segments-intersect/
-        #Two segments AB and CD intersect if and only if: C and D are on different sides of AB and A and B are on different sides of CD
+        #two segments AB and CD intersect if and only if: C and D are on different sides of AB and A and B are on different sides of CD
 
     def segment_hits_polygon(self, A, B, poly): #true if segment AB intersects any edge of polygon poly
         n = len(poly)
@@ -37,7 +35,7 @@ class GlobalNav:
                 return True  
         return False
 
-    def point_in_polygon(self, point, poly, eps=1e-9):
+    def point_in_polygon(self, point, poly):
         x, y = point
         inside = False
         n = len(poly)
@@ -48,13 +46,13 @@ class GlobalNav:
 
             #cross product == 0 -> collinear
             cross = (x - x1) * (y2 - y1) - (y - y1) * (x2 - x1)
-            if abs(cross) < eps: #accept tiny tolerance because never 0
+            if abs(cross) < cst.EPSILON: #accept tiny tolerance because never 0
                 # dot product <= 0 -> point is between endpoints
                 dot = (x - x1) * (x - x2) + (y - y1) * (y - y2)
-                if dot <= eps:
+                if dot <= cst.EPSILON:
                     return False  #on edge = considered outside
 
-            #check if the horizontal ray crosses edge (x1,y1)-(x2,y2)
+            #Ray casting : check if the horizontal ray crosses edge (x1,y1)-(x2,y2)
             if (y1 > y) != (y2 > y): #y is between y1 and y2; compute intersection x
                 x_intersect = (x2 - x1) * (y - y1) / (y2 - y1) + x1
                 if x < x_intersect:
@@ -80,7 +78,7 @@ class GlobalNav:
             vx = x - cx #dist from centroid to corner
             vy = y - cy
             L = sqrt(vx * vx + vy * vy) + 1e-6 #avoid div by 0, when center is on a point(like a 3 point line)
-            scale = (L + self.inflation) / L #scale factor to push vertex outward by inflation radius
+            scale = (L + cst.INFLATION_R) / L #scale factor to push vertex outward by inflation radius
             inflated.append((cx + vx * scale, cy + vy * scale)) #apply scaling to get inflated vertex
         return inflated
 
@@ -165,69 +163,81 @@ class GlobalNav:
         path_world = [nodes[i] for i in path_idx] #convert node indices to (x,y) coordinates
         return path_world
 
-    def is_goal_reached(self, current_pos, goal_pos, tol=40): #tol = distance tolerance in mm
-        dx = current_pos[0] - goal_pos[0]
-        dy = current_pos[1] - goal_pos[1]
-        d = sqrt(dx * dx + dy * dy)
-        return d < tol
+    def is_goal_reached(self, current_pos, goal_pos): #tol = 70mm bc R of the Thymio is ~55, so a bit more 
+        return self.dist(current_pos, goal_pos) < cst.GOAL_TOL
+    
+    def print_map(self, goal, obstacles):
+        path_world = nav.find_optimal_path(start, goal, obstacles)
+        return
 
 
-if __name__ == "__main__": #generated with chat gpt
+if __name__ == "__main__": #with chatGPT
     import matplotlib.pyplot as plt
 
     nav = GlobalNav()
 
     obstacles = [
-        [(200, 100), (200, 200), (600, 200), (600, 100)], #[(140, 260), (200, 360), (300, 180)],
-        [(400, 650), (400, 450), (700, 400), (890, 500), (890, 600), (700, 700)]
+        [(140, 260), (200, 400), (300, 180)],  # triangle (400, 300), (500, 300), (450, 450)
+        [(400, 500), (600, 380), (900, 460), (900, 540), (600, 620)],  # rectangle
+
     ]
 
     start = (80, 100)
     goal  = (920, 400)
 
+    # === Step 1 : Build visibility graph (for plotting only)
     nodes, edges = nav.build_visibility_graph(start, goal, obstacles)
-    path_idx = nav.dijkstra(edges, 0, 1)
-    path = [nodes[i] for i in path_idx]
 
+    # === Step 2 : Compute the optimal path (actually used by the robot)
+    path_world = nav.find_optimal_path(start, goal, obstacles)
+    path = [(float(x), float(y)) for (x, y) in path_world]
+    print("\nOptimal Path:", path)
+
+    # === Step 3 : Inflate obstacles (for visualization)
     inflated = [nav.inflate_polygon(poly) for poly in obstacles]
 
+    # === Step 4 : Plot
     fig, ax = plt.subplots(figsize=(9, 7))
-
     ax.set_title("Visibility Graph + Shortest Path", fontsize=16)
     ax.set_xlabel("x (mm)")
     ax.set_ylabel("y (mm)")
     ax.grid(True)
 
+    # Raw obstacles
     for poly in obstacles:
         xs = [p[0] for p in poly] + [poly[0][0]]
         ys = [p[1] for p in poly] + [poly[0][1]]
         ax.fill(xs, ys, color="lightgray", alpha=0.4)
 
+    # Inflated obstacles
     for poly in inflated:
         xs = [p[0] for p in poly] + [poly[0][0]]
         ys = [p[1] for p in poly] + [poly[0][1]]
         ax.plot(xs, ys, "k--", linewidth=1.2, alpha=0.4)
 
+    # Visibility graph edges
     for u in edges:
         for v, _ in edges[u]:
             x1, y1 = nodes[u]
             x2, y2 = nodes[v]
-            ax.plot([x1, x2], [y1, y2], color="grey", linewidth=1, alpha=0.35)
+            ax.plot([x1, x2], [y1, y2], color="gray", linewidth=1, alpha=0.35)
 
+    # Nodes
     for (x, y) in nodes:
         ax.plot(x, y, "bo", markersize=5)
 
+    # Shortest path (computed with find_optimal_path)
     px = [p[0] for p in path]
     py = [p[1] for p in path]
     ax.plot(px, py, "r-", linewidth=2, label="Shortest Path")
 
-    #plot start/goal
+    # Start + goal
     ax.plot(start[0], start[1], "go", markersize=10, label="Start")
     ax.plot(goal[0], goal[1], "ro", markersize=10, label="Goal")
 
-
+    # axis settings
     ax.set_xlim(0, nav.width)
-    ax.set_ylim(nav.height, 0) #inverts y-axis (0,0 = bottom-left)
+    ax.set_ylim(nav.height, 0)
     ax.invert_yaxis()
     ax.legend()
     plt.show()
