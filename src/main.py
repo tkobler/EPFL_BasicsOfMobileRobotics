@@ -76,14 +76,14 @@ async def main():
             #      path = global_nav.find_optimal_path(pos_estim, goal, obstacles)
             #      motion_control.set_path(path)
             
-            # thymio = pos_estim
-            # # movment 
-            # if (await motion_control.see_local_obstacle()): 
-            #     # Avoid local obstacle
-            #     await motion_control.avoid_local_obstacle(thymio)
-            # else: 
-            #     # Follow the global path
-            #     await motion_control.follow_path(thymio)
+            thymio = pos_estim
+            # movment 
+            if (await motion_control.see_local_obstacle()): 
+                # Avoid local obstacle
+                await motion_control.avoid_local_obstacle(thymio)
+            else: 
+                # Follow the global path
+                await motion_control.follow_path(thymio)
 
     except Exception as e:
         print(f"An error occurred: {e}")

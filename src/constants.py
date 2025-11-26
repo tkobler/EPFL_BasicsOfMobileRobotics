@@ -13,9 +13,9 @@ KIDNAP_THRESHOLD = 100  # threshold in mm for kidnapping detection
 # Vision environment config
 # ======================================
 # Constantes de dimensions (en mm)
-ENV_LARGEUR = 1189  # Largeur de l'environnement 
-ENV_LONGUEUR = 841  # Longueur de l'environnement 
-LARGEUR_MARQUEUR = 70  # Largeur d'un marqueur ArUco
+ENV_LARGEUR = 1150  # Largeur de l'environnement 
+ENV_LONGUEUR = 820  # Longueur de l'environnement 
+LARGEUR_MARQUEUR = 67  # Largeur d'un marqueur ArUco
 
 # ======================================
 # Uncertainties for the Kalman Filter
@@ -37,6 +37,6 @@ SPEED_MES_UNCERT_R = 5.05  #[ (mm/s)² ] uncertainty in right wheel speed measur
 # Global Nav
 # ======================================
 # Constantes de dimensions (en mm)
-INFLATION_R = 70
-GOAL_TOL = 100
+INFLATION_R = 140
+GOAL_TOL = 20
 EPSILON = 1e-9
