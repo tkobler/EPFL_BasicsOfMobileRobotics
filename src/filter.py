@@ -7,11 +7,10 @@ class Filter:
         self.state = np.array(initial_pos + [0, 0]) # current position estimate (x, y, theta, left_speed, right_speed)
         self.var = np.diag([0.01, 0.01, 0.01, 0.01, 0.01]) # variance of the estimation #? on est très confiant de la première mesure prise par la caméra pour la position initiale du robot
         self.A = None  # state transition matrix
+        self.J = None  # Jacobian matrix
         self.C = np.eye(5)  # observation matrix
-        #TODO : à ajuster avec des valeurs à tester
         self.Q = np.diag([cte.X_MOVE_UNCERT, cte.Y_MOVE_UNCERT, cte.THETA_MOVE_UNCERT, cte.SPEED_MOVE_UNCERT_L, cte.SPEED_MOVE_UNCERT_R])  # displacement noise covariance  
         self.R = None  # measurement noise covariance
-        #TODO : à ajuster avec des valeurs à tester
         self.R_with_camera = np.diag([cte.X_MEAS_UNCERT, cte.Y_MEAS_UNCERT, cte.THETA_MEAS_UNCERT, cte.SPEED_MES_UNCERT_L, cte.SPEED_MES_UNCERT_R])  # If camera feed is available  
         self.R_no_camera = np.diag([np.inf, np.inf, np.inf, cte.SPEED_MES_UNCERT_L, cte.SPEED_MES_UNCERT_R])  # If no camera feed we set high uncertainty so the measurment is ignored
 
@@ -39,7 +38,13 @@ class Filter:
 
         # State transition matrix
         # Angle theta is in radians and CCW positive
-        self.A = np.array([[1, 0, -np.sin(theta)*Ts*(ls-rs)/2, Ts/2*np.cos(theta), Ts/2*np.cos(theta)],
+        self.A = np.array([[1, 0, 0, Ts/2*np.cos(theta), Ts/2*np.cos(theta)],
+                           [0, 1, 0, Ts/2*np.sin(theta), Ts/2*np.sin(theta)],
+                           [0, 0, 1, -Ts/cte.WHEELBASE, Ts/cte.WHEELBASE],
+                           [0, 0, 0, 1, 0],
+                           [0, 0, 0, 0, 1]])
+
+        self.J = np.array([[1, 0, -np.sin(theta)*Ts*(ls-rs)/2, Ts/2*np.cos(theta), Ts/2*np.cos(theta)],
                            [0, 1, np.cos(theta)*Ts*(ls-rs)/2, Ts/2*np.sin(theta), Ts/2*np.sin(theta)],
                            [0, 0, 1, -Ts/cte.WHEELBASE, Ts/cte.WHEELBASE],
                            [0, 0, 0, 1, 0],
@@ -48,7 +53,7 @@ class Filter:
 
         # Compute prediciton
         state_pred = self.A@self.state
-        var_pred = self.A@self.var@self.A.T + self.Q
+        var_pred = self.J@self.var@self.J.T + self.Q
 
         # Compute innovation
         innov = state_meas - self.C@state_pred # innovation 
@@ -74,3 +79,4 @@ class Filter:
 # you can run python filter.py to test a specific function without compiling the entire project
 if __name__ == "__main__": 
     filter_instance = Filter()
+
