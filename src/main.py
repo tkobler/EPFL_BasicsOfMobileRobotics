@@ -71,10 +71,11 @@ async def main():
                 await motion_control.stop()
                 break
 
-            # # is there a kidnapping?
-            # if motion_control.is_kidnapped(pos_estim, thymio):
-            #      path = global_nav.find_optimal_path(pos_estim, goal, obstacles)
-            #      motion_control.set_path(path)
+            # is there a kidnapping?
+            if motion_control.is_kidnapped(pos_estim, thymio):
+                 print("Kidnapping detected! Stopping the robot.")
+                 path = global_nav.find_optimal_path(pos_estim, goal, obstacles)
+                 motion_control.set_path(path)
             
             thymio = pos_estim
             # movment 
