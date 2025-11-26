@@ -33,7 +33,11 @@ async def main():
             key = carte.afficher_video()
             if key == ord('p'):
                 break
-        thymio = carte.get_thymio_position() # pos x,y and angle in radians
+        search_pos = True
+        while search_pos:
+            thymio = carte.get_thymio_position() # pos x,y and angle in radians
+            if thymio != []:
+                search_pos = False
         goal = carte.get_goal_position() # pos x,y 
 
         filter = Filter(thymio)
