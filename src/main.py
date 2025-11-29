@@ -97,13 +97,17 @@ async def main():
                 motion_control.set_path(path)
 
             thymio = pos_estim
-            # movment 
-            if (await motion_control.see_local_obstacle()): 
-                # Avoid local obstacle
+
+            # movement 
+            if motion_control.avoiding:
+                # Already in an avoidance maneuver: keep doing it, ignore goal
                 await motion_control.avoid_local_obstacle(thymio)
-            else: 
-                # Follow the global path
-                await motion_control.follow_path(thymio)
+            else:
+                # Not currently avoiding: decide what to do based on sensors
+                if await motion_control.see_local_obstacle():
+                    await motion_control.avoid_local_obstacle(thymio)
+                else:
+                    await motion_control.follow_path(thymio)
 
     except Exception as e:
         print(f"An error occurred: {e}")

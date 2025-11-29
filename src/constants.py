@@ -13,8 +13,8 @@ KIDNAP_THRESHOLD = 100  # threshold in mm for kidnapping detection
 # Vision environment config
 # ======================================
 # Constantes de dimensions (en mm)
-ENV_LARGEUR = 1150  # Largeur de l'environnement 
-ENV_LONGUEUR = 820  # Longueur de l'environnement 
+ENV_LARGEUR = 1184  # Largeur de l'environnement 
+ENV_LONGUEUR = 840  # Longueur de l'environnement 
 LARGEUR_MARQUEUR = 67  # Largeur d'un marqueur ArUco
 
 # ======================================
