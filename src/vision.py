@@ -82,8 +82,6 @@ class Map:
         Returns:
             int: Code de la touche pressée (ou -1 si aucune touche)
         """
-        global derniere_frame
-
         if derniere_frame is not None:
             cv2.imshow('Detection ArUco - Webcam', derniere_frame)
             return cv2.waitKey(1) & 0xFF
@@ -174,7 +172,7 @@ class Map:
         """
         Arrête la détection et libère les ressources.
         """
-        global cap, running
+        global running
 
         running = False
 
@@ -194,7 +192,6 @@ class Map:
         Returns:
             list: [x, y, orientation] ou [] si non détecté
         """
-        global position_thymio_transformee
         if position_thymio_transformee and len(position_thymio_transformee) > 0:
             return [
                 position_thymio_transformee["x"] + cte.LARGEUR_MARQUEUR,
@@ -210,7 +207,6 @@ class Map:
         Returns:
             list: [x, y] ou [] si non détecté
         """
-        global position_objectif_transformee
         if position_objectif_transformee and len(position_objectif_transformee) > 0:
             return [
                 position_objectif_transformee["x"] + cte.LARGEUR_MARQUEUR,
@@ -229,8 +225,6 @@ class Map:
         Returns:
             list: Liste des obstacles, chaque obstacle est une liste de sommets [[x, y], [x, y], ...]
         """
-        global derniere_frame, derniere_frame_propre, matrice_homographie
-
         try:
             # Vérifier que nous avons une frame et une homographie
             if derniere_frame_propre is None or matrice_homographie is None:
@@ -317,8 +311,6 @@ def transformer_position_marqueur(corner, avec_orientation=False):
                ou (centre_x, centre_y, centre_transforme_x, centre_transforme_y, None, None) si avec_orientation=False
                ou (centre_x, centre_y, None, None, None, None) si pas d'homographie disponible
     """
-    global matrice_homographie
-
     # Extraire les 4 coins
     coin_haut_gauche = corner[0][0].astype(int)
     coin_haut_droit = corner[0][1].astype(int)
@@ -389,8 +381,6 @@ def transformer_vers_camera(x, y, angle=None):
                (x_camera, y_camera, x2_camera, y2_camera) si angle est fourni
                None si pas d'homographie disponible
     """
-    global matrice_homographie
-
     if matrice_homographie is None:
         return None
 
@@ -445,7 +435,7 @@ def calculer_matrice_homographie():
     Calcule et stocke la matrice d'homographie basée sur les 4 marqueurs de référence (ID 0-3).
     Met à jour la variable globale matrice_homographie.
     """
-    global positions_aruco, matrice_homographie
+    global matrice_homographie
     matrice_homographie={}
     # Vérifier que les 4 marqueurs de référence sont détectés
     if not all(mid in positions_aruco for mid in [0, 1, 2, 3]):
@@ -634,8 +624,7 @@ def boucle_detection():
     Détecte les marqueurs ArUco et met à jour les positions globales.
     N'affiche pas la vidéo (doit être fait depuis le thread principal).
     """
-    global positions_aruco, position_thymio_transformee, position_objectif_transformee, matrice_homographie
-    global derniere_frame, derniere_frame_propre, cap, detector, running
+    global derniere_frame, derniere_frame_propre
 
     # 20Hz = 50ms par frame
     target_delay = 1.0 / 20.0
