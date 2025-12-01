@@ -47,7 +47,7 @@ async def main():
         motion_control.set_path(path)
 
         goal_not_reached = True
-
+        chemin = [[100, 200], [150, 250], [200, 300], [250, 350]] #exemple
         # ======================================
         # Main loop
         # ======================================
@@ -64,6 +64,7 @@ async def main():
 
             # position display
             carte.dessin_point(pos_estim[0],pos_estim[1], pos_estim[2])
+            carte.dessin_chemin(chemin)
             carte.afficher_video()
 
             # is goal reached ?

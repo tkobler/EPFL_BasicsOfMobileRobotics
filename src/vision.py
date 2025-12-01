@@ -100,63 +100,75 @@ class Map:
             y: Coordonnée y dans l'espace transformé
             angle: Angle en radians dans l'espace transformé (optionnel)
         """
-        global matrice_homographie, derniere_frame
-
-        if matrice_homographie is None:
-            return
+        global derniere_frame
 
         if derniere_frame is None:
             return
 
-        try:
-            # Calculer la matrice d'homographie inverse
-            matrice_inverse = np.linalg.inv(matrice_homographie)
+        # Utiliser la fonction transformer_vers_camera pour obtenir les coordonnées
+        resultat = transformer_vers_camera(x, y, angle)
 
-            # Ajuster les coordonnées
-            x_ajuste = x - cte.LARGEUR_MARQUEUR
-            y_ajuste = y - cte.LARGEUR_MARQUEUR
+        if resultat is None:
+            return
 
-            if angle is not None:
-                # Transformer l'angle en créant un deuxième point dans la direction de l'angle
-                longueur = 50  # Longueur du vecteur de direction
-                x2 = x_ajuste + longueur * np.cos(angle)
-                y2 = y_ajuste + longueur * np.sin(angle)
+        if angle is not None:
+            # Avec angle : 4 valeurs retournées
+            x_camera, y_camera, x2_camera, y2_camera = resultat
 
-                # Créer les deux points à transformer
-                points = np.array([[x_ajuste, y_ajuste], [x2, y2]], dtype=np.float32)
-                points = points.reshape(-1, 1, 2)
+            # Dessiner le point sur la frame avec une couleur vive (rouge fluo)
+            cv2.circle(derniere_frame, (x_camera, y_camera), 10, (0, 0, 255), -1)
 
-                # Appliquer la transformation inverse
-                points_transformes = cv2.perspectiveTransform(points, matrice_inverse)
+            # Dessiner le trait dans la direction de l'angle transformé
+            cv2.line(derniere_frame, (x_camera, y_camera), (x2_camera, y2_camera), (0, 255, 0), 3)
+        else:
+            # Sans angle : 2 valeurs retournées
+            x_camera, y_camera = resultat
 
-                # Extraire les coordonnées des points transformés
-                x_camera = int(points_transformes[0][0][0])
-                y_camera = int(points_transformes[0][0][1])
-                x2_camera = int(points_transformes[1][0][0])
-                y2_camera = int(points_transformes[1][0][1])
+            # Dessiner le point sur la frame avec une couleur vive (rouge fluo)
+            cv2.circle(derniere_frame, (x_camera, y_camera), 10, (0, 0, 255), -1)
 
-                # Dessiner le point sur la frame avec une couleur vive (rouge fluo)
-                cv2.circle(derniere_frame, (x_camera, y_camera), 10, (0, 0, 255), -1)
+    def dessin_chemin(self, points):
+        """
+        Dessine un chemin (série de points reliés entre eux) sur la frame.
+        Transforme chaque point de l'espace transformé vers l'espace caméra.
 
-                # Dessiner le trait dans la direction de l'angle transformé
-                cv2.line(derniere_frame, (x_camera, y_camera), (x2_camera, y2_camera), (0, 255, 0), 3)
-            else:
-                # Créer le point à transformer
-                point = np.array([[x_ajuste, y_ajuste]], dtype=np.float32)
-                point = point.reshape(-1, 1, 2)
+        Args:
+            points: Liste de points de la forme [[x1, y1], [x2, y2], ...]
+        """
+        global derniere_frame
 
-                # Appliquer la transformation inverse
-                point_transforme = cv2.perspectiveTransform(point, matrice_inverse)
+        if derniere_frame is None:
+            return
 
-                # Extraire les coordonnées
-                x_camera = int(point_transforme[0][0][0])
-                y_camera = int(point_transforme[0][0][1])
+        if points is None or len(points) == 0:
+            return
 
-                # Dessiner le point sur la frame avec une couleur vive (rouge fluo)
-                cv2.circle(derniere_frame, (x_camera, y_camera), 10, (0, 0, 255), -1)
+        # Liste pour stocker les coordonnées caméra
+        points_camera = []
 
-        except Exception:
-            pass
+        # Transformer tous les points
+        for point in points:
+            if len(point) < 2:
+                continue
+
+            x, y = point[0], point[1]
+            resultat = transformer_vers_camera(x, y)
+
+            if resultat is None:
+                continue
+
+            x_camera, y_camera = resultat
+            points_camera.append((x_camera, y_camera))
+
+        # Dessiner les points et les lignes
+        for i, (x_camera, y_camera) in enumerate(points_camera):
+            # Dessiner le point (bleu)
+            cv2.circle(derniere_frame, (x_camera, y_camera), 5, (255, 0, 0), -1)
+
+            # Dessiner une ligne vers le point suivant
+            if i < len(points_camera) - 1:
+                x_next, y_next = points_camera[i + 1]
+                cv2.line(derniere_frame, (x_camera, y_camera), (x_next, y_next), (0, 255, 255), 2)
 
     def stop(self):
         """
@@ -363,13 +375,78 @@ def transformer_position_marqueur(corner, avec_orientation=False):
         return centre_x, centre_y, int(centre_transforme[0]), int(centre_transforme[1]), None, None
 
 
+def transformer_vers_camera(x, y, angle=None):
+    """
+    Transforme un point de l'espace transformé vers l'espace caméra (transformation inverse).
+
+    Args:
+        x: Coordonnée x dans l'espace transformé
+        y: Coordonnée y dans l'espace transformé
+        angle: Angle en radians dans l'espace transformé (optionnel)
+
+    Returns:
+        tuple: (x_camera, y_camera) si angle est None
+               (x_camera, y_camera, x2_camera, y2_camera) si angle est fourni
+               None si pas d'homographie disponible
+    """
+    global matrice_homographie
+
+    if matrice_homographie is None:
+        return None
+
+    try:
+        # Calculer la matrice d'homographie inverse
+        matrice_inverse = np.linalg.inv(matrice_homographie)
+
+        # Ajuster les coordonnées
+        x_ajuste = x - cte.LARGEUR_MARQUEUR
+        y_ajuste = y - cte.LARGEUR_MARQUEUR
+
+        if angle is not None:
+            # Transformer l'angle en créant un deuxième point dans la direction de l'angle
+            longueur = 50  # Longueur du vecteur de direction
+            x2 = x_ajuste + longueur * np.cos(angle)
+            y2 = y_ajuste + longueur * np.sin(angle)
+
+            # Créer les deux points à transformer
+            points = np.array([[x_ajuste, y_ajuste], [x2, y2]], dtype=np.float32)
+            points = points.reshape(-1, 1, 2)
+
+            # Appliquer la transformation inverse
+            points_transformes = cv2.perspectiveTransform(points, matrice_inverse)
+
+            # Extraire les coordonnées des points transformés
+            x_camera = int(points_transformes[0][0][0])
+            y_camera = int(points_transformes[0][0][1])
+            x2_camera = int(points_transformes[1][0][0])
+            y2_camera = int(points_transformes[1][0][1])
+
+            return x_camera, y_camera, x2_camera, y2_camera
+        else:
+            # Créer le point à transformer
+            point = np.array([[x_ajuste, y_ajuste]], dtype=np.float32)
+            point = point.reshape(-1, 1, 2)
+
+            # Appliquer la transformation inverse
+            point_transforme = cv2.perspectiveTransform(point, matrice_inverse)
+
+            # Extraire les coordonnées
+            x_camera = int(point_transforme[0][0][0])
+            y_camera = int(point_transforme[0][0][1])
+
+            return x_camera, y_camera
+
+    except Exception:
+        return None
+
+
 def calculer_matrice_homographie():
     """
     Calcule et stocke la matrice d'homographie basée sur les 4 marqueurs de référence (ID 0-3).
     Met à jour la variable globale matrice_homographie.
     """
     global positions_aruco, matrice_homographie
-
+    matrice_homographie={}
     # Vérifier que les 4 marqueurs de référence sont détectés
     if not all(mid in positions_aruco for mid in [0, 1, 2, 3]):
         return
@@ -405,6 +482,9 @@ def detecter_marqueurs_reference(corners, ids, frame):
         frame: Image pour dessiner les marqueurs
     """
     global positions_aruco
+
+    # Réinitialiser les positions ArUco (sera rempli seulement si les IDs 0-3 sont détectés)
+    positions_aruco = {}
 
     for corner, marker_id in zip(corners, ids):
         mid = marker_id[0]
