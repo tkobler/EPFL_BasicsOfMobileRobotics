@@ -68,6 +68,7 @@ async def main():
             #print(f"Estimated pos: {pos_estim}")
 
             # position display
+            print(f"Estimated pos: {pos_estim}")
             carte.dessin_point(pos_estim[0],pos_estim[1], pos_estim[2])
             carte.dessin_chemin(path)
             carte.afficher_video()
