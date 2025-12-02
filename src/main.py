@@ -52,7 +52,7 @@ async def main():
         motion_control.set_path(path)
 
         goal_not_reached = True
-        chemin = path #exemple
+
         # ======================================
         # Main loop
         # ======================================

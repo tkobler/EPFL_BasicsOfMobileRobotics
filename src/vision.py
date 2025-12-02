@@ -180,7 +180,7 @@ class Map:
         Retourne la position transformée du Thymio avec ajustement LARGEUR_MARQUEUR.
 
         Returns:
-            list: [x, y, orientation] ou None si non détecté
+            list: [x, y, orientation] ou [] si non détecté
         """
         global position_thymio_transformee
         if position_thymio_transformee and len(position_thymio_transformee) > 0:
@@ -189,14 +189,14 @@ class Map:
                 position_thymio_transformee["y"] + cte.LARGEUR_MARQUEUR,
                 position_thymio_transformee["orientation"]
             ]
-        return None
+        return []
 
     def get_goal_position(self):
         """
         Retourne la position de l'objectif (goal) avec ajustement LARGEUR_MARQUEUR.
 
         Returns:
-            list: [x, y] ou None si non détecté
+            list: [x, y] ou [] si non détecté
         """
         global position_objectif_transformee
         if position_objectif_transformee and len(position_objectif_transformee) > 0:
@@ -204,7 +204,7 @@ class Map:
                 position_objectif_transformee["x"] + cte.LARGEUR_MARQUEUR,
                 position_objectif_transformee["y"] + cte.LARGEUR_MARQUEUR
             ]
-        return None
+        return []
 
     def get_obstacles_positions(self, afficher=True):
         """
@@ -368,7 +368,8 @@ def calculer_matrice_homographie():
     Calcule et stocke la matrice d'homographie basée sur les 4 marqueurs de référence (ID 0-3).
     Met à jour la variable globale matrice_homographie.
     """
-    global matrice_homographie
+    global positions_aruco, matrice_homographie
+
     # Vérifier que les 4 marqueurs de référence sont détectés
     if not all(mid in positions_aruco for mid in [0, 1, 2, 3]):
         return
