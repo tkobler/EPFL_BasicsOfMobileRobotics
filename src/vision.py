@@ -168,17 +168,18 @@ class Map:
                 x_next, y_next = points_camera[i + 1]
                 cv2.line(derniere_frame, (x_camera, y_camera), (x_next, y_next), (0, 255, 255), 2)
 
-    def dessin_ellipse(self, x, y, orientation, rayon_x, rayon_y):
+    def dessin_ellipse(self, x, y, orientation, rayon_x, rayon_y, delta_theta):
         """
         Dessine une ellipse avec orientation sur la frame.
-        Génère des points d'ellipse dans l'espace transformé, puis les transforme vers l'espace caméra.
+        Ajoute un arc de cercle dans l'intervalle [orientation - delta_theta, orientation + delta_theta].
 
         Args:
             x: Coordonnée x du centre dans l'espace transformé
             y: Coordonnée y du centre dans l'espace transformé
             orientation: Angle d'orientation en radians
-            rayon_x: Rayon selon l'axe x
-            rayon_y: Rayon selon l'axe y
+            rayon_x: Rayon selon l'axe x de l'ellipse (utilisé aussi pour l'arc)
+            rayon_y: Rayon selon l'axe y de l'ellipse
+            delta_theta: Demi-ouverture angulaire de l'arc en radians
         """
         global derniere_frame
 
@@ -223,6 +224,34 @@ class Map:
                 pt2 = (int(points_camera[(i + 1) % len(points_camera)][0][0]),
                        int(points_camera[(i + 1) % len(points_camera)][0][1]))
                 cv2.line(derniere_frame, pt1, pt2, (255, 0, 0), 2)
+
+            # Dessiner l'arc de cercle dans l'intervalle angulaire
+            num_arc_points = 30
+            arc_angles = np.linspace(-delta_theta, delta_theta, num_arc_points)
+            points_arc_local = []
+
+            for angle in arc_angles:
+                x_local = rayon_x * np.cos(angle)
+                y_local = rayon_x * np.sin(angle)  # rayon constant = rayon_x
+                points_arc_local.append([x_local, y_local])
+
+            # Transformer les points de l'arc
+            points_arc_monde = []
+            for x_local, y_local in points_arc_local:
+                x_rot = x_local * np.cos(orientation) - y_local * np.sin(orientation)
+                y_rot = x_local * np.sin(orientation) + y_local * np.cos(orientation)
+                x_monde = x + x_rot - cte.LARGEUR_MARQUEUR
+                y_monde = y + y_rot - cte.LARGEUR_MARQUEUR
+                points_arc_monde.append([x_monde, y_monde])
+
+            points_arc_array = np.array(points_arc_monde, dtype=np.float32).reshape(-1, 1, 2)
+            points_arc_camera = cv2.perspectiveTransform(points_arc_array, matrice_inverse)
+
+            # Dessiner l'arc avec une couleur différente (vert)
+            for i in range(len(points_arc_camera) - 1):
+                pt1 = (int(points_arc_camera[i][0][0]), int(points_arc_camera[i][0][1]))
+                pt2 = (int(points_arc_camera[i + 1][0][0]), int(points_arc_camera[i + 1][0][1]))
+                cv2.line(derniere_frame, pt1, pt2, (0, 255, 0), 3)
 
             # Dessiner le trait d'orientation
             resultat_centre = transformer_vers_camera(x, y, orientation)
@@ -291,11 +320,19 @@ class Map:
             list: Liste des obstacles, chaque obstacle est une liste de sommets [[x, y], [x, y], ...]
         """
         try:
-            # Vérifier que nous avons une frame et une homographie
-            if derniere_frame_propre is None or matrice_homographie is None:
-                print("Erreur: Pas de frame ou homographie disponible")
+            # Attendre que la matrice homographique soit calculée
+            print("Attente de la matrice homographique...")
+            while matrice_homographie is None:
+                self.afficher_video()
+                if matrice_homographie is not None:
+                    break
+
+            # Vérifier que nous avons une frame
+            if derniere_frame_propre is None:
+                print("Erreur: Pas de frame disponible")
                 return []
 
+            print("Matrice homographique détectée!")
             # Capture automatique
             print("\n=== CAPTURE POUR DETECTION D'OBSTACLES ===")
 
@@ -500,7 +537,9 @@ def calculer_matrice_homographie():
     Calcule et stocke la matrice d'homographie basée sur les 4 marqueurs de référence (ID 0-3).
     Met à jour la variable globale matrice_homographie.
     """
+    #met la matric homographie a none
     global matrice_homographie
+    matrice_homographie = None
     # Vérifier que les 4 marqueurs de référence sont détectés
     if not all(mid in positions_aruco for mid in [0, 1, 2, 3]):
         return

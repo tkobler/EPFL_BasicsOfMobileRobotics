@@ -23,7 +23,7 @@ async def main():
         print("Puis quand la map apparait à l'écran, appuyer à nouveau sur 's' pour valider")
         while True:
             key = carte.afficher_video()
-            carte.dessin_ellipse(100, 100, 0, 30, 30)
+            carte.dessin_ellipse(500, 500, 0, 30, 60, 0.785)  # delta_theta ≈ π/4 ≈ 45°
             if key == ord('s'):
                 break
         obstacles = carte.get_obstacles_positions() # list of obstacles ((x,y), (x,y))
