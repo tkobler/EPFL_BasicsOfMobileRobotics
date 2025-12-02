@@ -436,7 +436,6 @@ def calculer_matrice_homographie():
     Met à jour la variable globale matrice_homographie.
     """
     global matrice_homographie
-    matrice_homographie={}
     # Vérifier que les 4 marqueurs de référence sont détectés
     if not all(mid in positions_aruco for mid in [0, 1, 2, 3]):
         return
