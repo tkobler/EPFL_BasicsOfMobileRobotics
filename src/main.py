@@ -23,7 +23,6 @@ async def main():
         print("Puis quand la map apparait à l'écran, appuyer à nouveau sur 's' pour valider")
         while True:
             key = carte.afficher_video()
-            carte.dessin_ellipse(500, 500, 0, 30, 60, 0.785)  # delta_theta ≈ π/4 ≈ 45°
             if key == ord('s'):
                 break
         obstacles = carte.get_obstacles_positions() # list of obstacles ((x,y), (x,y))
@@ -53,7 +52,6 @@ async def main():
         motion_control.set_path(path)
 
         goal_not_reached = True
-        chemin = path
         # ======================================
         # Main loop
         # ======================================
@@ -65,13 +63,14 @@ async def main():
             #print(f"Measured pos: {pos_measure}, Left speed: {left_speed_mes}, Right speed: {right_speed_mes}, Delta t: {delta_t}")
 
             # position estimation
-            pos_estim = filter.update(pos_measure, delta_t, left_speed_mes, right_speed_mes)
+            pos_estim, pos_var = filter.update(pos_measure, delta_t, left_speed_mes, right_speed_mes)
             #print(f"Estimated pos: {pos_estim}")
 
             # position display
             print(f"Estimated pos: {pos_estim}")
             carte.dessin_point(pos_estim[0],pos_estim[1], pos_estim[2])
             carte.dessin_chemin(path)
+            carte.dessin_ellipse(pos_estim[0], pos_estim[1], pos_estim[2], pos_var[0], pos_var[1], pos_var[2])  # delta_theta ≈ π/4 ≈ 45°. #TODO self, x, y, orientation, rayon_x, rayon_y, delta_theta):
             carte.afficher_video()
 
             # is goal reached ?

@@ -72,7 +72,7 @@ class Filter:
         self.var = var_estim
 
         # apply the filter to the data
-        return self.state[:3].tolist()  # return only the position (x, y, theta) in a normal python list format
+        return self.state[:3].tolist(), np.diag(self.var)[:3].tolist()  # return only the position (x, y, theta) in a normal python list format
 
     def print_filtering(self):
         return
