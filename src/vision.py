@@ -190,7 +190,7 @@ class Map:
         Retourne la position transformée du Thymio avec ajustement LARGEUR_MARQUEUR.
 
         Returns:
-            list: [x, y, orientation] ou [] si non détecté
+            list: [x, y, orientation] ou None si non détecté
         """
         if position_thymio_transformee and len(position_thymio_transformee) > 0:
             return [
@@ -198,21 +198,21 @@ class Map:
                 position_thymio_transformee["y"] + cte.LARGEUR_MARQUEUR,
                 position_thymio_transformee["orientation"]
             ]
-        return []
+        return None
 
     def get_goal_position(self):
         """
         Retourne la position de l'objectif (goal) avec ajustement LARGEUR_MARQUEUR.
 
         Returns:
-            list: [x, y] ou [] si non détecté
+            list: [x, y] ou None si non détecté
         """
         if position_objectif_transformee and len(position_objectif_transformee) > 0:
             return [
                 position_objectif_transformee["x"] + cte.LARGEUR_MARQUEUR,
                 position_objectif_transformee["y"] + cte.LARGEUR_MARQUEUR
             ]
-        return []
+        return None
 
     def get_obstacles_positions(self, afficher=True):
         """
