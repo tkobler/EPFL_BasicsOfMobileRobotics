@@ -10,16 +10,27 @@ import constants as cte
 '''
 This part has the values that the sensors take in order to detect wether or not it needs to avoid.
 '''
+
 # Thresholds
 
-OBST_THRESHOLD = 1500   # min val, start considering something an obstacle
-DANGER_THRESHOLD = 3500 # collision imminent 
+PROX_MAX = 4500 # crash, approx max val for Thymio IR sensors
+OBST_THRESHOLD = 2000  # min val, start considering something an obstacle
+DANGER_THRESHOLD = 3500  # collision imminent 
+
+# Potential field values
+
+REP_GAIN = 1.2 # Strength of repulsive forces
+ATT_GAIN = 1.0 # Strength of attractive force during avoidance
+
+# How long to keep an obstacle after it's not visible anymore (seconds)
+REP_DECAY_TIME = 3.0
 
 # Follow or avoid 
 
-TARGET_REACHED_DIST_MM = 30.0  # Target is reached radius (stay on trajectory), switch to next
-PATH_TURN_GAIN = 200.0         # How much to turn to align with target 
-AVOID_BASE_SPEED = cte.MAIN_MOTOR_SPEED * 0.7  # a bit slower when avoiding collision (not strictly required)
+TARGET_REACHED_DIST_MM = 30.0 # Target is reached radius (stay on trajectory), switch to next
+PATH_TURN_GAIN = 200.0 # How much to turn to align with target 
+AVOID_TURN_GAIN = 250.0 # How much to turn to avoid collision
+AVOID_BASE_SPEED = cte.MAIN_MOTOR_SPEED * 0.7  # a bit slower when avoiding collision
 
 # approx angles (rad) of the 5 front IR sensors in robot frame, no need for those in th e back
 SENSOR_ANGLES = [
@@ -35,6 +46,8 @@ class MotionControl:
         self.node = node
         self.client = client
         self.path = []
+
+        # since the path is a list [(x0, y0), (x1, y1), (x2, y2), ...] we are aiming at the first target on the path 
         self.current_target_idx = 0
 
         self.speed_left = 0
@@ -43,13 +56,9 @@ class MotionControl:
         self.speed_right_mes = 0
         self.time = time.time()
 
-        self.avoiding = False          # True while doing the big loop
-        self.avoid_side = "LEFT"       # "LEFT" or "RIGHT"
-        self.avoid_start_time = 0.0    # when we started the big loop
-
-        self.left_command = 0
-        self.right_command = 0
-
+        # Time of the last repulsive forces (imaginary obstacles)
+        self.last_rep_vec = (0.0, 0.0)
+        self.last_rep_time = 0.0
 
 
     def is_kidnapped(self, actual_pos, prev_pos):
@@ -71,8 +80,6 @@ class MotionControl:
         to go towards the next target in self.path.
         current_pos: (x, y, theta) in environment frame (mm, rad)
         """
-        if self.avoiding:
-            return
 
         # STEP 1 : CHECK WHERE YOU ARE AND WHERE YOU NEED TO GO
 
@@ -139,106 +146,143 @@ class MotionControl:
         await self.client.sleep(0.01)
         return max(front_vals) > OBST_THRESHOLD
 
-        ### Local obstacle avoidance: ONE BIG LOOP, time-based, dynamic side ###
     async def avoid_local_obstacle(self, current_pos):
-        """
-        On obstacle detection:
-          - Pick LEFT or RIGHT based on where the obstacle is stronger.
-          - For BIG_LOOP_TIME seconds, drive a wide arc in that direction.
-          - Then stop avoiding and give control back to follow_path.
+        ''' 
+        Use potential field mapping. 
+        - Obstacles are repulsive force vectors.
+        - Path is an attractive force vector.
+        '''
 
-        No angles, no multi-phase state, just one big loop.
-        """
+        # Purely for the sake of testing 
+        if not self.path or self.current_target_idx >= len(self.path):
+            goal_attraction = False
+        else:
+            goal_attraction = True
 
-        # --- PARAMETERS TO TUNE THE SIZE OF THE LOOP ---
-        BIG_LOOP_TIME = 4.0          # seconds spent driving the big arc (try 3.0–4.0)
-        CURVE_RATIO   = 0.9         # 0.85 vs 1.0 => wide arc (NOT tiny circle)
-        base_speed    = cte.MAIN_MOTOR_SPEED
-
-        # --- READ FRONT SENSORS ---
+        # STEP 1: Read the data from the proximity sensors 
         await self.node.wait_for_variables({"prox.horizontal"})
-        prox = self.node["prox.horizontal"]      # 7 values
-        front_vals = prox[0:5]                   # front 5
-        max_front = max(front_vals)
+        prox = self.node["prox.horizontal"]
+        front_vals = prox[0:5]
+        
+        '''
 
-        now = time.time()
+        # STEP 2: Compute the repulsive force from detected obstacles
+        Fx_rep, Fy_rep = 0.0, 0.0
+        for val, ang in zip(front_vals, SENSOR_ANGLES): 
+            # Zip pairs the lists element wise (angle and data of sensor) 
+            if val <= OBST_THRESHOLD:
+                # Ignore this reading if below the obstacle threshold 
+                continue
 
-        print(f"[AVOID] avoiding={self.avoiding}, max_front={max_front}") # DEBUGGINGH 
+            # The magnitude should be proportional to how much the threshold is exceeded 
+            mag = REP_GAIN * (val - OBST_THRESHOLD) / max(1.0, (PROX_MAX - OBST_THRESHOLD))
 
-        # -------------------------------------------------------
-        # 1) If we're NOT currently avoiding, decide whether to START
-        # -------------------------------------------------------
-        if not self.avoiding:
-            if max_front > OBST_THRESHOLD:
-                # Choose side dynamically based on which side sees more
-                # Assumes front_vals[0..4] go from LEFT to RIGHT.
-                left_sum  = front_vals[0] + front_vals[1]
-                right_sum = front_vals[3] + front_vals[4]
+            # The direction of the vector should be opposite to the sensor axis
+            Fx_rep += -mag * math.cos(ang)
+            Fy_rep += -mag * math.sin(ang)
 
-                if left_sum > right_sum:
-                    # obstacle more on the LEFT -> go around on the RIGHT
-                    self.avoid_side = "RIGHT"
-                else:
-                    # obstacle more on the RIGHT (or equal) -> go around on the LEFT
-                    self.avoid_side = "LEFT"
+        '''
+                # STEP 2: Compute the repulsive force from detected obstacles
+        # We keep a "ghost" repulsive force for a short time after losing the obstacle.
+        Fx_rep_raw, Fy_rep_raw = 0.0, 0.0
+        for val, ang in zip(front_vals, SENSOR_ANGLES):
+            # ignore this reading if below the obstacle threshold 
+            if val <= OBST_THRESHOLD:
+                continue
 
-                self.avoiding = True
-                self.avoid_start_time = now
+            # magnitude proportional to how much the threshold is exceeded 
+            mag = REP_GAIN * (val - OBST_THRESHOLD) / max(1.0, (PROX_MAX - OBST_THRESHOLD))
 
+            # direction opposite to sensor axis
+            Fx_rep_raw += -mag * math.cos(ang)
+            Fy_rep_raw += -mag * math.sin(ang)
+
+        # Now apply memory / decay
+        norm_raw = math.hypot(Fx_rep_raw, Fy_rep_raw)
+        if norm_raw > 1e-6:
+            # We currently see an obstacle -> update memory
+            self.last_rep_vec = (Fx_rep_raw, Fy_rep_raw)
+            self.last_rep_time = time.time()
+            Fx_rep, Fy_rep = Fx_rep_raw, Fy_rep_raw
+        else:
+            # No obstacle currently seen -> maybe use decaying "ghost" repulsion
+            dt = time.time() - self.last_rep_time
+            if dt < REP_DECAY_TIME:
+                decay = max(0.0, 1.0 - dt / REP_DECAY_TIME)
+                Fx_rep = self.last_rep_vec[0] * decay
+                Fy_rep = self.last_rep_vec[1] * decay
             else:
-                # Not avoiding, nothing to do
-                return
+                Fx_rep, Fy_rep = 0.0, 0.0
 
-        # -------------------------------------------------------
-        # From here on, we ARE in avoiding = True
-        # -------------------------------------------------------
-
-        # Emergency: if something is insanely close, spin in place
-        if max_front > DANGER_THRESHOLD:
-            v_left = -base_speed
-            v_right = base_speed
+        # Emergency situation : collision is imminent then spin on the spot until facing away 
+        if max(front_vals) > DANGER_THRESHOLD:
+            v_left = -cte.MAIN_MOTOR_SPEED
+            v_right = cte.MAIN_MOTOR_SPEED
             self.left_command = v_left
             self.right_command = v_right
             await self.node.set_variables(motors(v_left, v_right))
             await self.client.sleep(0.05)
             return
+        
+        # Compute the attractive force towards target to stay on track 
+        Fx_att, Fy_att = 0.0, 0.0
+        if goal_attraction:
+            x, y, theta = current_pos
+            target_x, target_y = self.path[self.current_target_idx]
 
-        # Check if we've done the full big loop
-        elapsed = now - self.avoid_start_time
-        if elapsed >= BIG_LOOP_TIME:
-            # Done with the big loop, stop avoiding
-            self.avoiding = False
+            dx = target_x - x
+            dy = target_y - y
+
+            ang_goal = math.atan2(dy, dx)
+            ang_goal_robot = ang_goal - theta
+            ang_goal_robot = math.atan2(math.sin(ang_goal_robot), math.cos(ang_goal_robot))
+
+            Fx_att = ATT_GAIN * math.cos(ang_goal_robot)
+            Fy_att = ATT_GAIN * math.sin(ang_goal_robot)
+        
+        '''
+
+        # Compute the resulting force 
+        Fx = Fx_att + Fx_rep
+        Fy = Fy_att + Fy_rep
+
+         '''
+
+        # Compute the resulting force 
+        # While the repulsive "ghost" is still active, reduce the attractive pull to the goal.
+        dt_since_rep = time.time() - self.last_rep_time
+        if dt_since_rep < REP_DECAY_TIME:
+            att_scale = 0.3  # weaker attraction when we recently saw an obstacle
+        else:
+            att_scale = 1.0
+
+        Fx = att_scale * Fx_att + Fx_rep
+        Fy = att_scale * Fy_att + Fy_rep
+
+
+        if Fx == 0.0 and Fy == 0.0:
+            # nothing to do
+            await self.stop()
             return
+         
+        # Translate this force into wheel speeds 
+        force_angle = math.atan2(Fy, Fx)  # in robot frame
+        force_angle += 10 * math.pi / 180.0
+        ang_err = math.atan2(math.sin(force_angle), math.cos(force_angle))
 
-        # -------------------------------------------------------
-        # 2) DRIVE ONE BIG WIDE ARC AROUND THE OBSTACLE
-        # -------------------------------------------------------
-        if self.avoid_side == "LEFT":
-            # Wide LEFT arc: left slightly slower than right
-            v_left  = CURVE_RATIO * base_speed
-            v_right = 1.0 * base_speed
-        else:  # "RIGHT"
-            # Wide RIGHT arc: right slightly slower than left
-            v_left  = 1.0 * base_speed
-            v_right = CURVE_RATIO * base_speed
+        base = AVOID_BASE_SPEED * max(0.0, math.cos(ang_err))  # slow when turning a lot
+        turn = AVOID_TURN_GAIN * ang_err
+
+        v_left = base - turn
+        v_right = base + turn
 
         self.left_command = v_left
         self.right_command = v_right
 
-        ################DEBUG################
-
-        elapsed = now - self.avoid_start_time
-        if elapsed >= BIG_LOOP_TIME:
-            print(f"[AVOID] finished big loop after {elapsed:.2f}s")
-            self.avoiding = False
-            return
-        
-        ################DEBUG################
-
-
         await self.node.set_variables(motors(v_left, v_right))
         await self.client.sleep(0.05)
 
+        return 
 
     ### getters and setters ================
     async def get_speed(self):
