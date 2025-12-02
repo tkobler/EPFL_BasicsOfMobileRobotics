@@ -23,6 +23,7 @@ async def main():
         print("Puis quand la map apparait à l'écran, appuyer à nouveau sur 's' pour valider")
         while True:
             key = carte.afficher_video()
+            carte.dessin_ellipse(100, 100, 0, 30, 30)
             if key == ord('s'):
                 break
         obstacles = carte.get_obstacles_positions() # list of obstacles ((x,y), (x,y))
@@ -52,7 +53,7 @@ async def main():
         motion_control.set_path(path)
 
         goal_not_reached = True
-
+        chemin = path
         # ======================================
         # Main loop
         # ======================================

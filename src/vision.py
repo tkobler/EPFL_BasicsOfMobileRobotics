@@ -168,6 +168,71 @@ class Map:
                 x_next, y_next = points_camera[i + 1]
                 cv2.line(derniere_frame, (x_camera, y_camera), (x_next, y_next), (0, 255, 255), 2)
 
+    def dessin_ellipse(self, x, y, orientation, rayon_x, rayon_y):
+        """
+        Dessine une ellipse avec orientation sur la frame.
+        Génère des points d'ellipse dans l'espace transformé, puis les transforme vers l'espace caméra.
+
+        Args:
+            x: Coordonnée x du centre dans l'espace transformé
+            y: Coordonnée y du centre dans l'espace transformé
+            orientation: Angle d'orientation en radians
+            rayon_x: Rayon selon l'axe x
+            rayon_y: Rayon selon l'axe y
+        """
+        global derniere_frame
+
+        if derniere_frame is None:
+            return
+
+        if matrice_homographie is None:
+            return
+
+        # Générer des points sur l'ellipse (50 points pour un rendu lisse)
+        num_points = 50
+        angles = np.linspace(0, 2 * np.pi, num_points)
+
+        # Points de l'ellipse dans son repère local (non orienté)
+        points_ellipse_local = []
+        for angle in angles:
+            x_local = rayon_x * np.cos(angle)
+            y_local = rayon_y * np.sin(angle)
+            points_ellipse_local.append([x_local, y_local])
+
+        # Transformer les points avec rotation et translation vers l'espace transformé
+        points_ellipse_monde = []
+        for x_local, y_local in points_ellipse_local:
+            # Rotation
+            x_rot = x_local * np.cos(orientation) - y_local * np.sin(orientation)
+            y_rot = x_local * np.sin(orientation) + y_local * np.cos(orientation)
+            # Translation
+            x_monde = x + x_rot - cte.LARGEUR_MARQUEUR
+            y_monde = y + y_rot - cte.LARGEUR_MARQUEUR
+            points_ellipse_monde.append([x_monde, y_monde])
+
+        # Transformer les points vers l'espace caméra avec la matrice inverse
+        try:
+            matrice_inverse = np.linalg.inv(matrice_homographie)
+            points_monde_array = np.array(points_ellipse_monde, dtype=np.float32)
+            points_monde_array = points_monde_array.reshape(-1, 1, 2)
+            points_camera = cv2.perspectiveTransform(points_monde_array, matrice_inverse)
+
+            # Dessiner l'ellipse en reliant les points
+            for i in range(len(points_camera)):
+                pt1 = (int(points_camera[i][0][0]), int(points_camera[i][0][1]))
+                pt2 = (int(points_camera[(i + 1) % len(points_camera)][0][0]),
+                       int(points_camera[(i + 1) % len(points_camera)][0][1]))
+                cv2.line(derniere_frame, pt1, pt2, (255, 0, 0), 2)
+
+            # Dessiner le trait d'orientation
+            resultat_centre = transformer_vers_camera(x, y, orientation)
+            if resultat_centre is not None:
+                x_camera, y_camera, x2_camera, y2_camera = resultat_centre
+                cv2.line(derniere_frame, (x_camera, y_camera), (x2_camera, y2_camera), (255, 0, 0), 2)
+
+        except Exception:
+            return
+
     def stop(self):
         """
         Arrête la détection et libère les ressources.
@@ -190,7 +255,7 @@ class Map:
         Retourne la position transformée du Thymio avec ajustement LARGEUR_MARQUEUR.
 
         Returns:
-            list: [x, y, orientation] ou None si non détecté
+            list: [x, y, orientation] ou [] si non détecté
         """
         if position_thymio_transformee and len(position_thymio_transformee) > 0:
             return [
@@ -198,21 +263,21 @@ class Map:
                 position_thymio_transformee["y"] + cte.LARGEUR_MARQUEUR,
                 position_thymio_transformee["orientation"]
             ]
-        return None
+        return []
 
     def get_goal_position(self):
         """
         Retourne la position de l'objectif (goal) avec ajustement LARGEUR_MARQUEUR.
 
         Returns:
-            list: [x, y] ou None si non détecté
+            list: [x, y] ou [] si non détecté
         """
         if position_objectif_transformee and len(position_objectif_transformee) > 0:
             return [
                 position_objectif_transformee["x"] + cte.LARGEUR_MARQUEUR,
                 position_objectif_transformee["y"] + cte.LARGEUR_MARQUEUR
             ]
-        return None
+        return []
 
     def get_obstacles_positions(self, afficher=True):
         """
