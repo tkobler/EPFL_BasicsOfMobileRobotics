@@ -13,18 +13,18 @@ DANGER_THRESHOLD = 3500
 # Potential field values
 REP_GAIN = 1.2          
 ATT_GAIN = 1.0          
-TANGENTIAL_GAIN = 10.0  
-COLLISION_DISTANCE = 1500 
+TANGENTIAL_GAIN = 8.0  
+COLLISION_DISTANCE = 1200 
 
 # Memory settings (Fixes the blind spot issue)
 OBSTACLE_MEMORY_DELAY = 1.0  # Seconds to keep avoiding after sensor clear
-ESCAPE_DURATION = 1.0        # NEW: Time to drive straight after clearing the obstacle
+ESCAPE_DURATION = 1.0        # MODIFIED: Time to drive straight after clearing the obstacle (increased to 4.0s)
 
 # Follow or avoid 
 TARGET_REACHED_DIST_MM = 30.0 
 PATH_TURN_GAIN = 200.0 
-AVOID_TURN_GAIN = 250.0 
-AVOID_BASE_SPEED = cte.MAIN_MOTOR_SPEED * 0.7 
+AVOID_TURN_GAIN = 150.0 
+AVOID_BASE_SPEED = cte.MAIN_MOTOR_SPEED * 0.4 
 
 # approx angles (rad) of the 5 front IR sensors in robot frame
 SENSOR_ANGLES = [
@@ -34,6 +34,10 @@ SENSOR_ANGLES = [
      20.0 * math.pi / 180.0,
      40.0 * math.pi / 180.0,
 ]
+
+# Lateral Clearance Threshold 
+LATERAL_CLEARANCE_THRESHOLD = 800 
+
 
 # --- MOTION CONTROL CLASS ---
 
@@ -55,9 +59,9 @@ class MotionControl:
         self.last_obst_side = 0            
         self.avoiding_state = False        
         
-        # NEW: Escape State variables
-        self.is_escaping = False        # Flag: Are we in the 2-second straight escape phase?
-        self.escape_start_time = 0.0    # Timestamp when the escape started
+        # Escape State variables
+        self.is_escaping = False        
+        self.escape_start_time = 0.0    
 
 
     def is_kidnapped(self, actual_pos, prev_pos):
@@ -160,36 +164,62 @@ class MotionControl:
 
         # --- ESCAPE STATE EXECUTION (HIGHEST PRIORITY) ---
         if self.is_escaping:
-            # 1. Check if duration is over or obstacle is suddenly visible
-            if (time.time() - self.escape_start_time) > ESCAPE_DURATION or physically_detected:
+            
+            # --- NEW ESCAPE EXIT CONDITION ---
+            time_limit_reached = (time.time() - self.escape_start_time) > ESCAPE_DURATION
+            
+            # Check for lateral re-detection: If the side we are escaping towards is NOT clear.
+            # last_obst_side = 1.0 means we push LEFT (avoiding obstacle on RIGHT). Check rightmost sensor (index 4).
+            # last_obst_side = -1.0 means we push RIGHT (avoiding obstacle on LEFT). Check leftmost sensor (index 0).
+            
+            if self.last_obst_side == 1.0: # Avoiding Right side
+                is_lateral_blocked = front_vals[4] > LATERAL_CLEARANCE_THRESHOLD
+            else: # Avoiding Left side
+                is_lateral_blocked = front_vals[0] > LATERAL_CLEARANCE_THRESHOLD
+
+            
+            # 1. Check if duration is over AND lateral path is clear, OR if a frontal obstacle is suddenly visible
+            
+            if physically_detected or (time_limit_reached and not is_lateral_blocked):
                 self.is_escaping = False
+                
                 if physically_detected:
-                     # If it reappeared, continue to full avoidance below
+                     # If it reappeared frontally, continue to full avoidance below
                      pass 
                 else:
-                     # Escape finished successfully, stop avoidance 
+                     # Escape finished successfully (time up and lateral clear), stop avoidance 
                      self.avoiding_state = False 
                      return # End the avoidance cycle immediately, let main switch to follow_path
             
+            # If the time limit is reached but the lateral path is STILL blocked,
+            # we stay in the escape state and continue straight until it's clear.
+            
             # 2. Execute straight movement with slight lateral push
             if self.is_escaping:
-                # Strong forward force and a slight correction away from the obstacle side
-                Fx = 2.0 
-                Fy = 0.5 * self.last_obst_side 
+                # Strong forward force (Fx) and a slight correction (Fy)
+                Fx = 1.7
+                Fy = 0 * self.last_obst_side 
                 
                 # Apply movement commands
                 force_angle = math.atan2(Fy, Fx) 
                 ang_err = math.atan2(math.sin(force_angle), math.cos(force_angle))
                 
+                # --- MODIFIED CALCULATION FOR ESCAPE ---
+                
+                # 1. Enforce high, constant forward speed (Base)
                 base = cte.MAIN_MOTOR_SPEED 
-                turn = PATH_TURN_GAIN * ang_err
+                
+                # 2. Use the path turn gain for precision, as this is a controlled escape
+                turn = PATH_TURN_GAIN * ang_err 
+                
+                # --- END MODIFIED CALCULATION ---
 
                 v_left = base - turn
                 v_right = base + turn
 
                 await self.node.set_variables(motors(v_left, v_right))
                 await self.client.sleep(0.05)
-                return # Skip PF calculation for the next 2 seconds
+                return # Skip PF calculation
         # --- END ESCAPE STATE EXECUTION ---
 
         # --- POTENTIAL FIELD CALCULATION ---
@@ -216,7 +246,7 @@ class MotionControl:
                 else:                  # Obstacle on the right side (or center)
                     push_direction = 1.0  # Push LEFT (Turn Right)
                     
-                tangential_angle = ang_obs + push_direction * (math.pi / 2)
+                tangential_angle = ang_obs # + push_direction * (math.pi / 2)
                 
                 Fx_rep = magnitude * math.cos(tangential_angle)
                 Fy_rep = magnitude * math.sin(tangential_angle)
@@ -225,10 +255,11 @@ class MotionControl:
                 self.last_obst_side = push_direction
                 self.last_obst_time = time.time()
             
-            # Emergency Stop logic
+            # Emergency Stop logic (reduced speed)
             if max(front_vals) > DANGER_THRESHOLD:
-                v_left = -cte.MAIN_MOTOR_SPEED * self.last_obst_side * 0.5
-                v_right = cte.MAIN_MOTOR_SPEED * self.last_obst_side * 0.5
+                # Note: The *0.5 scale factor is applied here to reduce the spin rate.
+                v_left = -cte.MAIN_MOTOR_SPEED * self.last_obst_side 
+                v_right = cte.MAIN_MOTOR_SPEED * self.last_obst_side 
                 await self.node.set_variables(motors(v_left, v_right))
                 await self.client.sleep(0.05)
                 return
@@ -237,23 +268,31 @@ class MotionControl:
             # === CASE B: Blind Spot (Memory Mode) - TRANSITION TO ESCAPE ===
             # Sensors are clear, but avoidance memory is still active.
             if self.avoiding_state:
-                # The turn is complete. Trigger the straight escape phase NOW.
+                # The initial turn is complete. Trigger the straight escape phase NOW.
                 self.is_escaping = True
                 self.escape_start_time = time.time()
                 
-                # Since the main logic checks the ESCAPE STATE first, this
-                # function will exit and re-run immediately, executing the 
-                # escape logic block above.
+                # The function will now exit and re-run, executing the ESCAPE LOGIC block above.
                 return 
-
-            # If memory just expired (self.avoiding_state is False here), Fx_rep, Fy_rep remain 0.0
 
         # STEP 3: Attractive Force (Goal)
         # We only reach here if the robot is *not* escaping, either in full avoidance or memory fade-out
         if physically_detected:
+            # Low attraction when direct physical avoidance is needed
             current_att_gain = ATT_GAIN * 0.2
+            
+        elif self.is_escaping:
+            # Moderate attraction during controlled straight escape
+            current_att_gain = ATT_GAIN * 0.4 
+            
+        elif self.avoiding_state:
+            # CRITICAL FIX: Keep attraction low during the transition/memory phase (Case B)
+            # This prevents the robot from snapping back to the obstacle.
+            current_att_gain = ATT_GAIN * 0.1
+            
         else:
-            current_att_gain = ATT_GAIN * 0.8 
+            # High attraction only when avoidance is truly finished (Memory expired)
+            current_att_gain = ATT_GAIN * 0.8
 
         x, y, theta = current_pos
         target_x, target_y = self.path[self.current_target_idx]
