@@ -164,7 +164,7 @@ class GlobalNav:
             print("GlobalNav (visibility): No path found!")
             return []
 
-        path_world = [self.nodes[i] for i in path_idx] #convert node indices to (x,y) coordinates
+        path_world = [[int(self.nodes[i][0]), int(self.nodes[i][1])] for i in path_idx] #convert node indices to (x,y) coordinates
         return path_world
 
     def is_goal_reached(self, current_pos, goal_pos): #tol = 70mm bc R of the Thymio is ~55, so a bit more 
