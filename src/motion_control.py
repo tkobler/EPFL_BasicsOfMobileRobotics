@@ -1,38 +1,32 @@
-#import necessary libraries
-#import numpy as np
-
-
 from platform import node
 import time
 import math 
 import constants as cte
 
-'''
-This part has the values that the sensors take in order to detect wether or not it needs to avoid.
-'''
+# --- CONFIGURATION CONSTANTS ---
 
 # Thresholds
-
-PROX_MAX = 4500 # crash, approx max val for Thymio IR sensors
-OBST_THRESHOLD = 2000  # min val, start considering something an obstacle
-DANGER_THRESHOLD = 3500  # collision imminent 
+PROX_MAX = 4500         
+OBST_THRESHOLD = 2000   
+DANGER_THRESHOLD = 3500 
 
 # Potential field values
+REP_GAIN = 1.2          
+ATT_GAIN = 1.0          
+TANGENTIAL_GAIN = 10.0  
+COLLISION_DISTANCE = 1500 
 
-REP_GAIN = 1.2 # Strength of repulsive forces
-ATT_GAIN = 1.0 # Strength of attractive force during avoidance
-
-# How long to keep an obstacle after it's not visible anymore (seconds)
-REP_DECAY_TIME = 3.0
+# Memory settings (Fixes the blind spot issue)
+OBSTACLE_MEMORY_DELAY = 1.0  # Seconds to keep avoiding after sensor clear
+ESCAPE_DURATION = 1.0        # NEW: Time to drive straight after clearing the obstacle
 
 # Follow or avoid 
+TARGET_REACHED_DIST_MM = 30.0 
+PATH_TURN_GAIN = 200.0 
+AVOID_TURN_GAIN = 250.0 
+AVOID_BASE_SPEED = cte.MAIN_MOTOR_SPEED * 0.7 
 
-TARGET_REACHED_DIST_MM = 30.0 # Target is reached radius (stay on trajectory), switch to next
-PATH_TURN_GAIN = 200.0 # How much to turn to align with target 
-AVOID_TURN_GAIN = 250.0 # How much to turn to avoid collision
-AVOID_BASE_SPEED = cte.MAIN_MOTOR_SPEED * 0.7  # a bit slower when avoiding collision
-
-# approx angles (rad) of the 5 front IR sensors in robot frame, no need for those in th e back
+# approx angles (rad) of the 5 front IR sensors in robot frame
 SENSOR_ANGLES = [
     -40.0 * math.pi / 180.0,
     -20.0 * math.pi / 180.0,
@@ -41,13 +35,13 @@ SENSOR_ANGLES = [
      40.0 * math.pi / 180.0,
 ]
 
+# --- MOTION CONTROL CLASS ---
+
 class MotionControl:
     def __init__(self, node=None, client=None):
         self.node = node
         self.client = client
         self.path = []
-
-        # since the path is a list [(x0, y0), (x1, y1), (x2, y2), ...] we are aiming at the first target on the path 
         self.current_target_idx = 0
 
         self.speed_left = 0
@@ -56,71 +50,58 @@ class MotionControl:
         self.speed_right_mes = 0
         self.time = time.time()
 
-        # Time of the last repulsive forces (imaginary obstacles)
-        self.last_rep_vec = (0.0, 0.0)
-        self.last_rep_time = 0.0
+        # Memory variables (Obstacle avoidance state)
+        self.last_obst_time = 0.0          
+        self.last_obst_side = 0            
+        self.avoiding_state = False        
+        
+        # NEW: Escape State variables
+        self.is_escaping = False        # Flag: Are we in the 2-second straight escape phase?
+        self.escape_start_time = 0.0    # Timestamp when the escape started
 
 
     def is_kidnapped(self, actual_pos, prev_pos):
-        # Check if there is a kidnapping event
         x, y, _ = actual_pos
         x_prev, y_prev, _ = prev_pos
-
-        dx = x - x_prev
-        dy = y - y_prev
-
-        dist = math.hypot(dx, dy)
-        
+        dist = math.hypot(x - x_prev, y - y_prev)
         return dist > cte.KIDNAP_THRESHOLD
     
+    # ----------------------------------------------------------------------
     ### Global navigation ================
+    # ----------------------------------------------------------------------
     async def follow_path(self, current_pos):
         """
-        Follow the global path. It is composed of multiple targets. Set motor speeds 
-        to go towards the next target in self.path.
-        current_pos: (x, y, theta) in environment frame (mm, rad)
+        Follow the global path. 
         """
-
-        # STEP 1 : CHECK WHERE YOU ARE AND WHERE YOU NEED TO GO
+        # Reset avoidance states when safely back on path
+        self.avoiding_state = False 
+        self.is_escaping = False
 
         if not self.path or self.current_target_idx >= len(self.path):
-                    # If ther is no path the robot has to stop
-                    await self.stop()
-                    return
+            await self.stop()
+            return
         
         x, y, theta = current_pos
         target_x, target_y = self.path[self.current_target_idx]
 
-        # Vector to the target
         dx = target_x-x
         dy = target_y-y
         dist = math.hypot(dx, dy)
 
-        # STEP 2 : CHECK IF YOU REACHED THE DESTINATION, IF YES COMPUTE NEXT
-
-        # If the target is reached, scope for next target 
         if dist < TARGET_REACHED_DIST_MM:
-             self.current_target_idx +=1 # switch to next
-             if self.current_target_idx >= len(self.path): # was it the last one 
+             self.current_target_idx +=1 
+             if self.current_target_idx >= len(self.path): 
                   await self.stop()
                   return
-             # get vector again
              target_x, target_y = self.path[self.current_target_idx]
              dx = target_x-x
              dy = target_y-y
-             dist = math.hypot(dx, dy)
 
-        # STEP 3 : ACTUALLY MOVE
-
-        # Get the right angle
         ang_goal = math.atan2(dy, dx)
         ang_error = ang_goal-theta
         ang_error = math.atan2(math.sin(ang_error), math.cos(ang_error))
-        # atan2 returns the angle theta between the positive x-axis and the ray from the origin to the point (x, y), confined to (−π, π]
 
-        # Now adjust the speeds
         base = cte.MAIN_MOTOR_SPEED
-
         turn = PATH_TURN_GAIN * ang_error
 
         v_left = base - turn
@@ -130,147 +111,180 @@ class MotionControl:
         self.right_command = v_right
 
         await self.node.set_variables(motors(v_left, v_right))
-
         return
 
+    # ----------------------------------------------------------------------
     ### Local obstacle avoidance ========
+    # ----------------------------------------------------------------------
     async def see_local_obstacle(self):
         """
-        Returns True if a local obstacle is detected in front of the robot using the
-        proximity sensors.
+        Returns True if a local obstacle is detected OR if we are in the 
+        memory retention period or escape phase.
         """
         await self.node.wait_for_variables({"prox.horizontal"})
-        prox = self.node["prox.horizontal"]  # List of 7 values of all sensors 
-        front_vals = prox[0:5] # We don't need those in the back
-
-        await self.client.sleep(0.01)
-        return max(front_vals) > OBST_THRESHOLD
+        prox = self.node["prox.horizontal"] 
+        front_vals = prox[0:5] 
+        
+        is_physically_visible = max(front_vals) > OBST_THRESHOLD
+        
+        # If physically visible, update memory time and state
+        if is_physically_visible:
+            self.last_obst_time = time.time()
+            self.avoiding_state = True
+            self.is_escaping = False # If we see it, we are not escaping!
+            return True
+        
+        # If sensors are clear, check if we should still be in avoidance mode
+        if self.avoiding_state or self.is_escaping:
+            if (time.time() - self.last_obst_time) < OBSTACLE_MEMORY_DELAY or self.is_escaping:
+                return True
+            else:
+                self.avoiding_state = False # Memory expired, safe to return False
+                self.is_escaping = False
+                return False
+                
+        return False
 
     async def avoid_local_obstacle(self, current_pos):
         ''' 
-        Use potential field mapping. 
-        - Obstacles are repulsive force vectors.
-        - Path is an attractive force vector.
+        Uses a Tangential Potential Field and the Straight-Line Escape State.
         '''
-
-        # Purely for the sake of testing 
-        if not self.path or self.current_target_idx >= len(self.path):
-            goal_attraction = False
-        else:
-            goal_attraction = True
-
-        # STEP 1: Read the data from the proximity sensors 
+        
+        # STEP 1: Read sensors
         await self.node.wait_for_variables({"prox.horizontal"})
         prox = self.node["prox.horizontal"]
         front_vals = prox[0:5]
         
-        '''
-
-        # STEP 2: Compute the repulsive force from detected obstacles
+        physically_detected = max(front_vals) > OBST_THRESHOLD
         Fx_rep, Fy_rep = 0.0, 0.0
-        for val, ang in zip(front_vals, SENSOR_ANGLES): 
-            # Zip pairs the lists element wise (angle and data of sensor) 
-            if val <= OBST_THRESHOLD:
-                # Ignore this reading if below the obstacle threshold 
-                continue
 
-            # The magnitude should be proportional to how much the threshold is exceeded 
-            mag = REP_GAIN * (val - OBST_THRESHOLD) / max(1.0, (PROX_MAX - OBST_THRESHOLD))
+        # --- ESCAPE STATE EXECUTION (HIGHEST PRIORITY) ---
+        if self.is_escaping:
+            # 1. Check if duration is over or obstacle is suddenly visible
+            if (time.time() - self.escape_start_time) > ESCAPE_DURATION or physically_detected:
+                self.is_escaping = False
+                if physically_detected:
+                     # If it reappeared, continue to full avoidance below
+                     pass 
+                else:
+                     # Escape finished successfully, stop avoidance 
+                     self.avoiding_state = False 
+                     return # End the avoidance cycle immediately, let main switch to follow_path
+            
+            # 2. Execute straight movement with slight lateral push
+            if self.is_escaping:
+                # Strong forward force and a slight correction away from the obstacle side
+                Fx = 2.0 
+                Fy = 0.5 * self.last_obst_side 
+                
+                # Apply movement commands
+                force_angle = math.atan2(Fy, Fx) 
+                ang_err = math.atan2(math.sin(force_angle), math.cos(force_angle))
+                
+                base = cte.MAIN_MOTOR_SPEED 
+                turn = PATH_TURN_GAIN * ang_err
 
-            # The direction of the vector should be opposite to the sensor axis
-            Fx_rep += -mag * math.cos(ang)
-            Fy_rep += -mag * math.sin(ang)
+                v_left = base - turn
+                v_right = base + turn
 
-        '''
-                # STEP 2: Compute the repulsive force from detected obstacles
-        # We keep a "ghost" repulsive force for a short time after losing the obstacle.
-        Fx_rep_raw, Fy_rep_raw = 0.0, 0.0
-        for val, ang in zip(front_vals, SENSOR_ANGLES):
-            # ignore this reading if below the obstacle threshold 
-            if val <= OBST_THRESHOLD:
-                continue
+                await self.node.set_variables(motors(v_left, v_right))
+                await self.client.sleep(0.05)
+                return # Skip PF calculation for the next 2 seconds
+        # --- END ESCAPE STATE EXECUTION ---
 
-            # magnitude proportional to how much the threshold is exceeded 
-            mag = REP_GAIN * (val - OBST_THRESHOLD) / max(1.0, (PROX_MAX - OBST_THRESHOLD))
+        # --- POTENTIAL FIELD CALCULATION ---
+        
+        if physically_detected:
+            
+            # === STEP A.1: Calculate RAW Repulsive Force (Tangential Force Generation) ===
+            max_val = 0
+            max_idx = -1
+            
+            for i, val in enumerate(front_vals):
+                if val > max_val:
+                    max_val = val
+                    max_idx = i
+            
+            if max_idx != -1 and max_val > COLLISION_DISTANCE:
+                
+                ang_obs = SENSOR_ANGLES[max_idx]
+                magnitude = TANGENTIAL_GAIN * (max_val - COLLISION_DISTANCE) / PROX_MAX
+                
+                # Decision for turn direction
+                if max_idx in [0, 1]:  # Obstacle on the left side
+                    push_direction = -1.0 # Push RIGHT (Turn Left)
+                else:                  # Obstacle on the right side (or center)
+                    push_direction = 1.0  # Push LEFT (Turn Right)
+                    
+                tangential_angle = ang_obs + push_direction * (math.pi / 2)
+                
+                Fx_rep = magnitude * math.cos(tangential_angle)
+                Fy_rep = magnitude * math.sin(tangential_angle)
+                
+                # Update Memory
+                self.last_obst_side = push_direction
+                self.last_obst_time = time.time()
+            
+            # Emergency Stop logic
+            if max(front_vals) > DANGER_THRESHOLD:
+                v_left = -cte.MAIN_MOTOR_SPEED * self.last_obst_side * 0.5
+                v_right = cte.MAIN_MOTOR_SPEED * self.last_obst_side * 0.5
+                await self.node.set_variables(motors(v_left, v_right))
+                await self.client.sleep(0.05)
+                return
 
-            # direction opposite to sensor axis
-            Fx_rep_raw += -mag * math.cos(ang)
-            Fy_rep_raw += -mag * math.sin(ang)
-
-        # Now apply memory / decay
-        norm_raw = math.hypot(Fx_rep_raw, Fy_rep_raw)
-        if norm_raw > 1e-6:
-            # We currently see an obstacle -> update memory
-            self.last_rep_vec = (Fx_rep_raw, Fy_rep_raw)
-            self.last_rep_time = time.time()
-            Fx_rep, Fy_rep = Fx_rep_raw, Fy_rep_raw
         else:
-            # No obstacle currently seen -> maybe use decaying "ghost" repulsion
-            dt = time.time() - self.last_rep_time
-            if dt < REP_DECAY_TIME:
-                decay = max(0.0, 1.0 - dt / REP_DECAY_TIME)
-                Fx_rep = self.last_rep_vec[0] * decay
-                Fy_rep = self.last_rep_vec[1] * decay
-            else:
-                Fx_rep, Fy_rep = 0.0, 0.0
+            # === CASE B: Blind Spot (Memory Mode) - TRANSITION TO ESCAPE ===
+            # Sensors are clear, but avoidance memory is still active.
+            if self.avoiding_state:
+                # The turn is complete. Trigger the straight escape phase NOW.
+                self.is_escaping = True
+                self.escape_start_time = time.time()
+                
+                # Since the main logic checks the ESCAPE STATE first, this
+                # function will exit and re-run immediately, executing the 
+                # escape logic block above.
+                return 
 
-        # Emergency situation : collision is imminent then spin on the spot until facing away 
-        if max(front_vals) > DANGER_THRESHOLD:
-            v_left = -cte.MAIN_MOTOR_SPEED
-            v_right = cte.MAIN_MOTOR_SPEED
-            self.left_command = v_left
-            self.right_command = v_right
-            await self.node.set_variables(motors(v_left, v_right))
-            await self.client.sleep(0.05)
-            return
+            # If memory just expired (self.avoiding_state is False here), Fx_rep, Fy_rep remain 0.0
+
+        # STEP 3: Attractive Force (Goal)
+        # We only reach here if the robot is *not* escaping, either in full avoidance or memory fade-out
+        if physically_detected:
+            current_att_gain = ATT_GAIN * 0.2
+        else:
+            current_att_gain = ATT_GAIN * 0.8 
+
+        x, y, theta = current_pos
+        target_x, target_y = self.path[self.current_target_idx]
+        dx = target_x - x
+        dy = target_y - y
+
+        ang_goal = math.atan2(dy, dx)
+        ang_goal_robot = ang_goal - theta
+        ang_goal_robot = math.atan2(math.sin(ang_goal_robot), math.cos(ang_goal_robot))
+
+        Fx_att = current_att_gain * math.cos(ang_goal_robot)
+        Fy_att = current_att_gain * math.sin(ang_goal_robot)
         
-        # Compute the attractive force towards target to stay on track 
-        Fx_att, Fy_att = 0.0, 0.0
-        if goal_attraction:
-            x, y, theta = current_pos
-            target_x, target_y = self.path[self.current_target_idx]
-
-            dx = target_x - x
-            dy = target_y - y
-
-            ang_goal = math.atan2(dy, dx)
-            ang_goal_robot = ang_goal - theta
-            ang_goal_robot = math.atan2(math.sin(ang_goal_robot), math.cos(ang_goal_robot))
-
-            Fx_att = ATT_GAIN * math.cos(ang_goal_robot)
-            Fy_att = ATT_GAIN * math.sin(ang_goal_robot)
-        
-        '''
-
-        # Compute the resulting force 
+        # Resultant Force
         Fx = Fx_att + Fx_rep
         Fy = Fy_att + Fy_rep
 
-         '''
-
-        # Compute the resulting force 
-        # While the repulsive "ghost" is still active, reduce the attractive pull to the goal.
-        dt_since_rep = time.time() - self.last_rep_time
-        if dt_since_rep < REP_DECAY_TIME:
-            att_scale = 0.3  # weaker attraction when we recently saw an obstacle
-        else:
-            att_scale = 1.0
-
-        Fx = att_scale * Fx_att + Fx_rep
-        Fy = att_scale * Fy_att + Fy_rep
-
-
         if Fx == 0.0 and Fy == 0.0:
-            # nothing to do
-            await self.stop()
+            await self.move() 
             return
          
-        # Translate this force into wheel speeds 
-        force_angle = math.atan2(Fy, Fx)  # in robot frame
-        force_angle += 10 * math.pi / 180.0
+        # Translate to wheel speeds
+        force_angle = math.atan2(Fy, Fx) 
+        
+        # Tweak: Dampen angle change when repulsive forces are fading
+        if not physically_detected:
+            force_angle = force_angle * 0.8 
+
         ang_err = math.atan2(math.sin(force_angle), math.cos(force_angle))
 
-        base = AVOID_BASE_SPEED * max(0.0, math.cos(ang_err))  # slow when turning a lot
+        base = AVOID_BASE_SPEED * max(0.2, math.cos(ang_err)) 
         turn = AVOID_TURN_GAIN * ang_err
 
         v_left = base - turn
@@ -281,52 +295,40 @@ class MotionControl:
 
         await self.node.set_variables(motors(v_left, v_right))
         await self.client.sleep(0.05)
-
         return 
 
-    ### getters and setters ================
+    # ----------------------------------------------------------------------
+    ### Getters and Setters ================
+    # ----------------------------------------------------------------------
     async def get_speed(self):
-        # Return current wheel speeds
         await self.node.wait_for_variables({"motor.left.speed", "motor.right.speed"})
-        self.speed_left_mes = self.node["motor.left.speed"] * cte.SPEED_TO_MMS  # speed in mm/s
-        self.speed_right_mes = self.node["motor.right.speed"] * cte.SPEED_TO_MMS  # speed in mm/s
+        self.speed_left_mes = self.node["motor.left.speed"] * cte.SPEED_TO_MMS 
+        self.speed_right_mes = self.node["motor.right.speed"] * cte.SPEED_TO_MMS
         await self.client.sleep(0.01)
         return self.speed_left_mes, self.speed_right_mes
     
     def get_time(self):
-        # Return time elapsed since last call
         current_time = time.time()
         delta_t = current_time - self.time
         self.time = current_time
         return delta_t
 
     def set_path(self, path):
-        # Set a new path for the robot
         self.path = path
         self.current_target_idx = 0
+        self.avoiding_state = False 
+        self.is_escaping = False
         return
-    
 
-    ### Navigation in general ================
     async def stop(self):
-        # Stop the robot
         await self.node.set_variables(motors(0, 0))
-        self.left_command = 0
-        self.right_command = 0
         return
 
     async def move(self):
-        # Logic to move the robot based on current path and obstacle detection
-        # Ensure we see motor speeds
-        await self.node.wait_for_variables({"motor.left.speed", "motor.right.speed"})
-        self.speed_left_mes = self.node["motor.left.speed"] # speed in Thymio units
-        self.speed_right_mes = self.node["motor.right.speed"] # speed in Thymio units
-        # print("Moving forward")
         await self.node.set_variables(motors(cte.MAIN_MOTOR_SPEED, cte.MAIN_MOTOR_SPEED))
         return
 
-
-### Helper function to use the motors
+# --- HELPER FUNCTION ---
 def motors(left, right):
     return {
         "motor.left.target": [int(left * cte.CALIB_LEFT_WHEEL)],

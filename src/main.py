@@ -98,15 +98,9 @@ async def main():
 
             thymio = pos_estim
 
-            # movement 
-            if motion_control.avoiding:
-                # Already in an avoidance maneuver: keep doing it, ignore goal
-                await motion_control.avoid_local_obstacle(thymio)
-            else:
-                # Not currently avoiding: decide what to do based on sensors
-                if await motion_control.see_local_obstacle():
+            if await motion_control.see_local_obstacle():
                     await motion_control.avoid_local_obstacle(thymio)
-                else:
+            else:
                     await motion_control.follow_path(thymio)
 
     except Exception as e:
