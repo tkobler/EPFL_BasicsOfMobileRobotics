@@ -158,6 +158,7 @@ class GlobalNav:
         goal_pt = [goal[0], goal[1]]
 
         self.nodes, self.edges = self.build_visibility_graph(start_pt, goal_pt, obstacles)
+        self.nodes = self.nodes  #store for plotting later
 
         path_idx = self.dijkstra(self.edges, start_idx=0, goal_idx=1) #goal idx = 1 bc of build_visibility
         if path_idx is None:
@@ -165,7 +166,7 @@ class GlobalNav:
             return []
 
         path_world = [[int(self.nodes[i][0]), int(self.nodes[i][1])] for i in path_idx] #convert node indices to (x,y) coordinates
-        return path_world
+        return path_world  #removes start point to avoid stopping immediately
 
     def is_goal_reached(self, current_pos, goal_pos): #tol = 70mm bc R of the Thymio is ~55, so a bit more 
         return self.dist(current_pos, goal_pos) < cst.GOAL_TOL

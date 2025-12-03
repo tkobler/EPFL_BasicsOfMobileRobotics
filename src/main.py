@@ -97,6 +97,7 @@ async def main():
                     if pos_estim != []:
                         search_pos = False
                 path = global_nav.find_optimal_path(pos_estim, goal, obstacles)
+                print("path : ", path)
                 motion_control.set_path(path)
 
             thymio = pos_estim

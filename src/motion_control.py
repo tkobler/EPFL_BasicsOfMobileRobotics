@@ -51,7 +51,7 @@ class MotionControl:
         self.node = node
         self.client = client
         self.path = []
-        self.current_target_idx = 0
+        self.current_target_idx = 1
 
         self.speed_left = 0
         self.speed_right = 0
@@ -80,11 +80,6 @@ class MotionControl:
         # Threshold: if both values are near zero → no ground detected
         # Kidnapped if both sensors see nothing
         return left < NO_GROUND_THRESHOLD and right < NO_GROUND_THRESHOLD
-    def is_kidnapped(self, actual_pos, prev_pos):
-        x, y, _ = actual_pos
-        x_prev, y_prev, _ = prev_pos
-        dist = math.hypot(x - x_prev, y - y_prev)
-        return dist > cte.KIDNAP_THRESHOLD
     
     # ----------------------------------------------------------------------
     ### Global navigation ================
@@ -103,6 +98,7 @@ class MotionControl:
         
         x, y, theta = current_pos
         target_x, target_y = self.path[self.current_target_idx]
+        print(f"Current target: {target_x}, {target_y}")
 
         dx = target_x-x
         dy = target_y-y
@@ -234,7 +230,7 @@ class MotionControl:
 
     def set_path(self, path):
         self.path = path
-        self.current_target_idx = 0
+        self.current_target_idx = 1
         self.avoiding_state = False 
         self.is_escaping = False
         return
