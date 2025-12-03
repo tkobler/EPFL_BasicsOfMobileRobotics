@@ -21,9 +21,9 @@ LARGEUR_MARQUEUR = 67  # Largeur d'un marqueur ArUco
 # Uncertainties for the Kalman Filter
 # ======================================
 # Matrice Q : process noise covariance matrix
-X_MOVE_UNCERT = 3.2  #[mm²] uncertainty in x direction (movment noise)
-Y_MOVE_UNCERT = 3.2  #[mm²] uncertainty in y direction (movment noise)
-THETA_MOVE_UNCERT = 0.214  #[rad²] uncertainty in theta (movment noise)
+X_MOVE_UNCERT = 0.92  #[mm²] uncertainty in x direction (movment noise)
+Y_MOVE_UNCERT = 0.92  #[mm²] uncertainty in y direction (movment noise)
+THETA_MOVE_UNCERT = 0.115  #[rad²] uncertainty in theta (movment noise)
 SPEED_MOVE_UNCERT_L = 0.57  #[ (mm/s)² ] uncertainty in left wheel speed (movment noise)
 SPEED_MOVE_UNCERT_R = 0.53  #[ (mm/s)² ] uncertainty in right wheel speed (movment noise)
 # Matrice R : measurement noise covariance matrix
