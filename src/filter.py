@@ -71,6 +71,7 @@ class Filter:
         self.state = state_estim
         self.var = var_estim
 
+        print("Variances after update:", np.diag(self.var))
         # apply the filter to the data
         return self.state[:3].tolist(), np.diag(self.var)[:3].tolist()  # return only the position (x, y, theta) in a normal python list format
 

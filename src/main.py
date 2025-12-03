@@ -65,9 +65,10 @@ async def main():
             # position estimation
             pos_estim, pos_var = filter.update(pos_measure, delta_t, left_speed_mes, right_speed_mes)
             #print(f"Estimated pos: {pos_estim}")
+            print("variances:", pos_var)
 
             # position display
-            print(f"Estimated pos: {pos_estim}")
+            #print(f"Estimated pos: {pos_estim}")
             carte.dessin_point(pos_estim[0],pos_estim[1], pos_estim[2])
             carte.dessin_chemin(path)
             carte.dessin_ellipse(pos_estim[0], pos_estim[1], pos_estim[2], pos_var[0], pos_var[1], pos_var[2])  # delta_theta ≈ π/4 ≈ 45°. #TODO self, x, y, orientation, rayon_x, rayon_y, delta_theta):
