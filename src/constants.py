@@ -30,8 +30,8 @@ SPEED_MOVE_UNCERT_R = 0.53  #[ (mm/s)² ] uncertainty in right wheel speed (movm
 X_MEAS_UNCERT = 0.349  #[mm²] uncertainty in x direction from camera (measurement noise)
 Y_MEAS_UNCERT = 0.349  #[mm²] uncertainty in y direction from camera (measurement noise)
 THETA_MEAS_UNCERT = 0.027  #[rad²] uncertainty in theta from camera (measurement noise)
-SPEED_MES_UNCERT_L = 3.46  #[ (mm/s)² ] uncertainty in left wheel speed measurement
-SPEED_MES_UNCERT_R = 5.05  #[ (mm/s)² ] uncertainty in right wheel speed measurement
+SPEED_MES_UNCERT_L = 0.56  #[ (mm/s)² ] uncertainty in left wheel speed measurement
+SPEED_MES_UNCERT_R = 0.55  #[ (mm/s)² ] uncertainty in right wheel speed measurement
 
 # ======================================
 # Global Nav
