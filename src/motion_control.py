@@ -24,7 +24,7 @@ ESCAPE_DURATION = 1.0        # MODIFIED: Time to drive straight after clearing t
 TARGET_REACHED_DIST_MM = 30.0 
 PATH_TURN_GAIN = 200.0 
 AVOID_TURN_GAIN = 150.0 
-AVOID_BASE_SPEED = cte.MAIN_MOTOR_SPEED * 0.4 
+AVOID_BASE_SPEED = cte.MAIN_MOTOR_SPEED * 0.4
 
 # approx angles (rad) of the 5 front IR sensors in robot frame
 SENSOR_ANGLES = [
@@ -57,7 +57,8 @@ class MotionControl:
         # Memory variables (Obstacle avoidance state)
         self.last_obst_time = 0.0          
         self.last_obst_side = 0            
-        self.avoiding_state = False        
+        self.avoiding_state = False      
+        self.turn_speed = AVOID_TURN_GAIN  
         
         # Escape State variables
         self.is_escaping = False        
@@ -130,24 +131,23 @@ class MotionControl:
         front_vals = prox[0:5] 
         
         is_physically_visible = max(front_vals) > OBST_THRESHOLD
-        
-        # If physically visible, update memory time and state
+
+        # NEW LOGIC : TURN UNTIL OBSTACLES ARE NOT VISIBLE ANYMORE (THEN ESCAPE)
+
         if is_physically_visible:
             self.last_obst_time = time.time()
             self.avoiding_state = True
             self.is_escaping = False # If we see it, we are not escaping!
             return True
         
-        # If sensors are clear, check if we should still be in avoidance mode
-        if self.avoiding_state or self.is_escaping:
-            if (time.time() - self.last_obst_time) < OBSTACLE_MEMORY_DELAY or self.is_escaping:
-                return True
-            else:
-                self.avoiding_state = False # Memory expired, safe to return False
-                self.is_escaping = False
-                return False
-                
-        return False
+        time_since_detection = time.time() - self.last_obst_time
+
+        if self.avoiding_state and time_since_detection < ESCAPE_DURATION:
+            return True
+        else:
+            # Time is up, we are safe to go back to global nav
+            self.avoiding_state = False
+            return False
 
     async def avoid_local_obstacle(self, current_pos):
         ''' 
@@ -160,181 +160,46 @@ class MotionControl:
         front_vals = prox[0:5]
         
         physically_detected = max(front_vals) > OBST_THRESHOLD
-        Fx_rep, Fy_rep = 0.0, 0.0
 
-        # --- ESCAPE STATE EXECUTION (HIGHEST PRIORITY) ---
-        if self.is_escaping:
-            
-            # --- NEW ESCAPE EXIT CONDITION ---
-            time_limit_reached = (time.time() - self.escape_start_time) > ESCAPE_DURATION
-            
-            # Check for lateral re-detection: If the side we are escaping towards is NOT clear.
-            # last_obst_side = 1.0 means we push LEFT (avoiding obstacle on RIGHT). Check rightmost sensor (index 4).
-            # last_obst_side = -1.0 means we push RIGHT (avoiding obstacle on LEFT). Check leftmost sensor (index 0).
-            
-            if self.last_obst_side == 1.0: # Avoiding Right side
-                is_lateral_blocked = front_vals[4] > LATERAL_CLEARANCE_THRESHOLD
-            else: # Avoiding Left side
-                is_lateral_blocked = front_vals[0] > LATERAL_CLEARANCE_THRESHOLD
-
-            
-            # 1. Check if duration is over AND lateral path is clear, OR if a frontal obstacle is suddenly visible
-            
-            if physically_detected or (time_limit_reached and not is_lateral_blocked):
-                self.is_escaping = False
-                
-                if physically_detected:
-                     # If it reappeared frontally, continue to full avoidance below
-                     pass 
-                else:
-                     # Escape finished successfully (time up and lateral clear), stop avoidance 
-                     self.avoiding_state = False 
-                     return # End the avoidance cycle immediately, let main switch to follow_path
-            
-            # If the time limit is reached but the lateral path is STILL blocked,
-            # we stay in the escape state and continue straight until it's clear.
-            
-            # 2. Execute straight movement with slight lateral push
-            if self.is_escaping:
-                # Strong forward force (Fx) and a slight correction (Fy)
-                Fx = 1.7
-                Fy = 0 * self.last_obst_side 
-                
-                # Apply movement commands
-                force_angle = math.atan2(Fy, Fx) 
-                ang_err = math.atan2(math.sin(force_angle), math.cos(force_angle))
-                
-                # --- MODIFIED CALCULATION FOR ESCAPE ---
-                
-                # 1. Enforce high, constant forward speed (Base)
-                base = cte.MAIN_MOTOR_SPEED 
-                
-                # 2. Use the path turn gain for precision, as this is a controlled escape
-                turn = PATH_TURN_GAIN * ang_err 
-                
-                # --- END MODIFIED CALCULATION ---
-
-                v_left = base - turn
-                v_right = base + turn
-
-                await self.node.set_variables(motors(v_left, v_right))
-                await self.client.sleep(0.05)
-                return # Skip PF calculation
-        # --- END ESCAPE STATE EXECUTION ---
-
-        # --- POTENTIAL FIELD CALCULATION ---
-        
+        # CASE A: OBSTACLE VISIBLE -> TURN AWAY
         if physically_detected:
+            # Reset escape timer (we are still dealing with the object)
+            self.last_obst_time = time.time()
             
-            # === STEP A.1: Calculate RAW Repulsive Force (Tangential Force Generation) ===
-            max_val = 0
-            max_idx = -1
-            
-            for i, val in enumerate(front_vals):
-                if val > max_val:
-                    max_val = val
-                    max_idx = i
-            
-            if max_idx != -1 and max_val > COLLISION_DISTANCE:
-                
-                ang_obs = SENSOR_ANGLES[max_idx]
-                magnitude = TANGENTIAL_GAIN * (max_val - COLLISION_DISTANCE) / PROX_MAX
-                
-                # Decision for turn direction
-                if max_idx in [0, 1]:  # Obstacle on the left side
-                    push_direction = -1.0 # Push RIGHT (Turn Left)
-                else:                  # Obstacle on the right side (or center)
-                    push_direction = 1.0  # Push LEFT (Turn Right)
-                    
-                tangential_angle = ang_obs # + push_direction * (math.pi / 2)
-                
-                Fx_rep = magnitude * math.cos(tangential_angle)
-                Fy_rep = magnitude * math.sin(tangential_angle)
-                
-                # Update Memory
-                self.last_obst_side = push_direction
-                self.last_obst_time = time.time()
-            
-            # Emergency Stop logic (reduced speed)
-            if max(front_vals) > DANGER_THRESHOLD:
-                # Note: The *0.5 scale factor is applied here to reduce the spin rate.
-                v_left = -cte.MAIN_MOTOR_SPEED * self.last_obst_side 
-                v_right = cte.MAIN_MOTOR_SPEED * self.last_obst_side 
-                await self.node.set_variables(motors(v_left, v_right))
-                await self.client.sleep(0.05)
-                return
+            # Simple decision: Left or Right?
+            # Sum sensors on left vs right to decide direction
+            # Left side: indices 0, 1. Right side: indices 3, 4. Center: 2
+            left_sum = front_vals[0] + front_vals[1]
+            right_sum = front_vals[3] + front_vals[4]
 
-        else:
-            # === CASE B: Blind Spot (Memory Mode) - TRANSITION TO ESCAPE ===
-            # Sensors are clear, but avoidance memory is still active.
-            if self.avoiding_state:
-                # The initial turn is complete. Trigger the straight escape phase NOW.
-                self.is_escaping = True
-                self.escape_start_time = time.time()
-                
-                # The function will now exit and re-run, executing the ESCAPE LOGIC block above.
-                return 
-
-        # STEP 3: Attractive Force (Goal)
-        # We only reach here if the robot is *not* escaping, either in full avoidance or memory fade-out
-        if physically_detected:
-            # Low attraction when direct physical avoidance is needed
-            current_att_gain = ATT_GAIN * 0.2
+            if left_sum > right_sum:
+                # Obstacle is on the LEFT -> Turn RIGHT (Push -1)
+                self.last_obst_side = 1.0 
+            else:
+                # Obstacle is on the RIGHT -> Turn LEFT (Push 1)
+                self.last_obst_side = -1.0
             
-        elif self.is_escaping:
-            # Moderate attraction during controlled straight escape
-            current_att_gain = ATT_GAIN * 0.4 
-            
-        elif self.avoiding_state:
-            # CRITICAL FIX: Keep attraction low during the transition/memory phase (Case B)
-            # This prevents the robot from snapping back to the obstacle.
-            current_att_gain = ATT_GAIN * 0.1
-            
-        else:
-            # High attraction only when avoidance is truly finished (Memory expired)
-            current_att_gain = ATT_GAIN * 0.8
+            # Apply turn based on side
+            base = cte.MAIN_MOTOR_SPEED
+            v_left = base + (self.turn_speed * self.last_obst_side)
+            v_right = base - (self.turn_speed * self.last_obst_side)
 
-        x, y, theta = current_pos
-        target_x, target_y = self.path[self.current_target_idx]
-        dx = target_x - x
-        dy = target_y - y
-
-        ang_goal = math.atan2(dy, dx)
-        ang_goal_robot = ang_goal - theta
-        ang_goal_robot = math.atan2(math.sin(ang_goal_robot), math.cos(ang_goal_robot))
-
-        Fx_att = current_att_gain * math.cos(ang_goal_robot)
-        Fy_att = current_att_gain * math.sin(ang_goal_robot)
-        
-        # Resultant Force
-        Fx = Fx_att + Fx_rep
-        Fy = Fy_att + Fy_rep
-
-        if Fx == 0.0 and Fy == 0.0:
-            await self.move() 
+            await self.node.set_variables(motors(v_left, v_right))
             return
-         
-        # Translate to wheel speeds
-        force_angle = math.atan2(Fy, Fx) 
         
-        # Tweak: Dampen angle change when repulsive forces are fading
-        if not physically_detected:
-            force_angle = force_angle * 0.8 
-
-        ang_err = math.atan2(math.sin(force_angle), math.cos(force_angle))
-
-        base = AVOID_BASE_SPEED * max(0.2, math.cos(ang_err)) 
-        turn = AVOID_TURN_GAIN * ang_err
-
-        v_left = base - turn
-        v_right = base + turn
-
-        self.left_command = v_left
-        self.right_command = v_right
-
-        await self.node.set_variables(motors(v_left, v_right))
-        await self.client.sleep(0.05)
-        return 
+        # CASE B: OBSTACLE NOT VISIBLE -> ESCAPE
+        else:
+            # We are in the escape duration (guaranteed by see_local_obstacle returning True)
+            
+            # Drive Straight Forward
+            # We can add a tiny bias away from the last known obstacle side if desired,
+            # but you requested straight.
+            
+            v_left = cte.MAIN_MOTOR_SPEED
+            v_right = cte.MAIN_MOTOR_SPEED
+            
+            await self.node.set_variables(motors(v_left, v_right))
+            return
 
     # ----------------------------------------------------------------------
     ### Getters and Setters ================
