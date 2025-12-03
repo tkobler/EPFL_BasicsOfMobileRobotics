@@ -16,6 +16,7 @@ This part has the values that the sensors take in order to detect wether or not 
 PROX_MAX = 4500 # crash, approx max val for Thymio IR sensors
 OBST_THRESHOLD = 2000  # min val, start considering something an obstacle
 DANGER_THRESHOLD = 3500  # collision imminent 
+NO_GROUND_THRESHOLD = 50  # min val, start considering no ground below
 
 # Potential field values
 
@@ -61,17 +62,16 @@ class MotionControl:
         self.last_rep_time = 0.0
 
 
-    def is_kidnapped(self, actual_pos, prev_pos):
-        # Check if there is a kidnapping event
-        x, y, _ = actual_pos
-        x_prev, y_prev, _ = prev_pos
+    async def is_kidnapped(self):
 
-        dx = x - x_prev
-        dy = y - y_prev
-
-        dist = math.hypot(dx, dy)
+        await self.node.wait_for_variables({"prox.ground.delta"})
         
-        return dist > cte.KIDNAP_THRESHOLD
+        ground = self.node["prox.ground.delta"]
+        left, right = ground[0], ground[1]
+
+        # Threshold: if both values are near zero → no ground detected
+        # Kidnapped if both sensors see nothing
+        return left < NO_GROUND_THRESHOLD and right < NO_GROUND_THRESHOLD
     
     ### Global navigation ================
     async def follow_path(self, current_pos):
