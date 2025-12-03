@@ -82,7 +82,7 @@ async def main():
                 break
 
             # is there a kidnapping?
-            if motion_control.is_kidnapped(pos_estim, thymio):
+            if await motion_control.is_kidnapped():
                 print("Kidnapping detected! Stopping the robot.")
                 await motion_control.stop()
                 print("Please place the robot back on the map and press 'r' to resume.")
