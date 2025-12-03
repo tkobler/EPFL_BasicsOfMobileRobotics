@@ -16,7 +16,7 @@ This part has the values that the sensors take in order to detect wether or not 
 PROX_MAX = 4500 # crash, approx max val for Thymio IR sensors
 OBST_THRESHOLD = 2000  # min val, start considering something an obstacle
 DANGER_THRESHOLD = 3500  # collision imminent 
-NO_GROUND_THRESHOLD = 50  # min val, start considering no ground below
+NO_GROUND_THRESHOLD = 200  # min val, start considering no ground below
 
 # Potential field values
 
