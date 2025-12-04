@@ -3,6 +3,7 @@ import heapq
 from math import sqrt
 import constants as cst
 import matplotlib.pyplot as plt
+import cv2
 
 #obstacle minimum 3 points no lines
 
@@ -215,7 +216,8 @@ class GlobalNav:
 
         print("Press 'p' to close the plot.")
         plot_graph = True
-        key = 'p'
+        key = -1
+        key = cv2.waitKey(1) & 0xFF
         while plot_graph:
             if key == ord('p'):
                 plot_graph = False
