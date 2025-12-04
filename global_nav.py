@@ -213,6 +213,15 @@ class GlobalNav:
         ax.legend()
         plt.show()
 
+        print("Press 'p' to close the plot.")
+        plot_graph = True
+        key = 'p'
+        while plot_graph:
+            if key == ord('p'):
+                plot_graph = False
+                plt.close('all')
+                break
+
 
 if __name__ == "__main__":
     nav = GlobalNav()

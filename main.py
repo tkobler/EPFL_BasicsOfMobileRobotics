@@ -47,6 +47,7 @@ async def main():
         global_nav.plot_map(obstacles, path, [thymio[0], thymio[1]], goal)
         print("Chemin calculé avec succès.")
         print(path)
+        goal = carte.get_goal_position() # pos x,y 
 
         motion_control = MotionControl(node, client)
         motion_control.set_path(path)
