@@ -212,18 +212,15 @@ class GlobalNav:
         ax.set_ylim(self.height, 0)
         ax.invert_yaxis()
         ax.legend()
+   # ferme le plot
+
+        fig.canvas.mpl_connect('key_press_event', on_key)
         plt.show()
 
-        print("Press 'p' to close the plot.")
-        plot_graph = True
-        key = -1
-        while plot_graph:
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord('p'):
-                plot_graph = False
-                plt.close('all')
-                break
 
+def on_key(event):
+    if event.key == 'p':
+        plt.close()  # Close the plot when 'p' is pressed
 
 if __name__ == "__main__":
     nav = GlobalNav()
