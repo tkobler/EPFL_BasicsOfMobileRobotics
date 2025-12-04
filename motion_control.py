@@ -7,9 +7,9 @@ import constants as cte
 
 # Thresholds
 
-PROX_MAX = 4500 # crash, approx max val for Thymio IR sensors
+PROX_MAX = 4500 # Not needed anymore 
 OBST_THRESHOLD = 2000  # min val, start considering something an obstacle
-DANGER_THRESHOLD = 3500  # collision imminent 
+DANGER_THRESHOLD = 3500  # not needed anymore
 NO_GROUND_THRESHOLD = 50  # min val, start considering no ground below
 PROX_MAX = 4500         
 OBST_THRESHOLD = 2000   
