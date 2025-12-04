@@ -217,8 +217,8 @@ class GlobalNav:
         print("Press 'p' to close the plot.")
         plot_graph = True
         key = -1
-        key = cv2.waitKey(1) & 0xFF
         while plot_graph:
+            key = cv2.waitKey(1) & 0xFF
             if key == ord('p'):
                 plot_graph = False
                 plt.close('all')
