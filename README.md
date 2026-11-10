@@ -33,4 +33,4 @@ Full description of the methods and results: [Group_T14_report.ipynb](Group_T14_
 
 ## Team
 
-Ana Schwabedal, amirlh, jvillaret, Tim Kobler.
+Ana Schwabedal, amirlh, jvillaret, Tim Kobler (with a few commits by the GitHub Copilot bot).
