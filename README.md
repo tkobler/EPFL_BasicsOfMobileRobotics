@@ -27,6 +27,8 @@ python3 main.py
 
 Point the camera at the map so the 4 corner markers are visible, press `s` to initialise the map, place the Thymio, then press `p` to start.
 
+If the robot is picked up and moved (kidnapping), it stops. Put it back on the map and press `r` to resume.
+
 ## Report
 
 Full description of the methods and results: [Group_T14_report.ipynb](Group_T14_report.ipynb).
@@ -34,3 +36,7 @@ Full description of the methods and results: [Group_T14_report.ipynb](Group_T14_
 ## Team
 
 Ana Schwabedal, amirlh, jvillaret, Tim Kobler (with a few commits by the GitHub Copilot bot).
+
+## License
+
+Released under the [MIT License](LICENSE).
